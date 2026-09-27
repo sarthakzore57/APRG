@@ -26,11 +26,18 @@ def run_report_job(db: Session, job_id: int) -> None:
         ai = get_ai_provider()
         rag = RagService(ai)
         query = f"{project.title}\n{project.abstract}\n{project.description}\n{project.technologies}\n{profile}"
-        chunks = rag.retrieve(query)
+        chunks = rag.retrieve(
+            query,
+            metadata_hint={
+                "college": project.college,
+                "branch": project.branch,
+                "technology": project.technologies,
+            },
+        )
         context = project_context(project, profile, extracted, chunks)
         chapters = project.custom_chapters or DEFAULT_CHAPTERS
 
-        job.message = "Generating report with Gemini"
+        job.message = f"Generating report with Gemini using {len(chunks)} RAG reference chunk(s)"
         db.commit()
         report = ai.generate_json(report_prompt(context, chapters))
 

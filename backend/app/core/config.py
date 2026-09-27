@@ -13,11 +13,11 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_minutes: int = 60 * 24
     gemini_api_key: str | None = None
-    gemini_generation_model: str = "gemini-2.5-flash"
-    gemini_fallback_models: str = "gemini-2.5-flash-lite"
+    gemini_generation_model: str = "gemini-3.5-flash-lite"
+    gemini_fallback_models: str = "gemini-3.5-flash"
     gemini_max_retries: int = 2
     gemini_retry_delay_seconds: float = 1.5
-    gemini_embedding_model: str = "text-embedding-004"
+    gemini_embedding_model: str = "gemini-embedding-001"
     storage_backend: str = "local"
     local_storage_path: str = "storage"
     chroma_path: str = "storage/chroma"

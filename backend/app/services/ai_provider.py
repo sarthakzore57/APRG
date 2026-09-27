@@ -1,9 +1,12 @@
 import json
 import time
 from abc import ABC, abstractmethod
+from http.client import RemoteDisconnected
+from socket import gaierror
 
 from google import genai
 from google.genai.errors import APIError, ServerError
+from requests import RequestException
 
 from app.core.config import get_settings
 
@@ -59,12 +62,30 @@ class GeminiProvider(AIProvider):
     def embed(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []
         for text in texts:
-            result = self.client.models.embed_content(
-                model=self.settings.gemini_embedding_model,
-                contents=text[:8000],
-            )
+            result = self._embed_with_retry(text)
             vectors.append(result.embeddings[0].values)
         return vectors
+
+    def _embed_with_retry(self, text: str):
+        last_error: Exception | None = None
+        for attempt in range(self.settings.gemini_max_retries + 1):
+            try:
+                return self.client.models.embed_content(
+                    model=self.settings.gemini_embedding_model,
+                    contents=text[:8000],
+                )
+            except (APIError, ServerError, RequestException, OSError, RemoteDisconnected, gaierror) as exc:
+                last_error = exc
+                if isinstance(exc, (APIError, ServerError)) and not self._should_retry(exc):
+                    break
+                if attempt == self.settings.gemini_max_retries:
+                    break
+                time.sleep(self.settings.gemini_retry_delay_seconds * (attempt + 1))
+        detail = str(last_error) if last_error else "unknown error"
+        raise RuntimeError(
+            "Gemini embedding failed. Check internet/DNS access to generativelanguage.googleapis.com "
+            f"and verify GEMINI_API_KEY. Detail: {detail}"
+        ) from last_error
 
     def _should_retry(self, exc: Exception) -> bool:
         code = getattr(exc, "code", None)
