@@ -8,9 +8,12 @@ from app.core.config import get_settings
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
+origins = [origin.strip() for origin in settings.frontend_origin.split(",") if origin.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.frontend_origin.split(",")],
+    allow_origins=origins or ["*"],
+    allow_origin_regex=r"^https://.*\.vercel\.app$|^https://.*\.onrender\.com$|^http://localhost:\d+$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
