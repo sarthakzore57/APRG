@@ -9,12 +9,17 @@ from app.models.entities import FileKind, JobStatus, Project, ReportJob, StoredF
 from app.schemas.dto import ChapterEdit, JobRead, ProjectCreate, ProjectRead, ProjectUpdate, RegenerateRequest
 from app.services.ai_provider import get_ai_provider
 from app.services.extraction import clean_text, extract_text
-from app.services.prompting import project_context
+from app.services.prompting import TEMPLATE_PRESETS, project_context
 from app.services.report_generator import run_report_job
 from app.services.storage import StorageService
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+@router.get("/templates")
+def list_templates() -> list[dict]:
+    return TEMPLATE_PRESETS
 
 
 @router.get("", response_model=list[ProjectRead])

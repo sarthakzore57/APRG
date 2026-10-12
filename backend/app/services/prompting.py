@@ -13,6 +13,80 @@ DEFAULT_CHAPTERS = [
     "References",
 ]
 
+TEMPLATE_PRESETS = [
+    {
+        "id": "btech_standard",
+        "name": "B.Tech / B.E. Major Project (Standard)",
+        "description": "Comprehensive 12-chapter format following standard Indian and international engineering college guidelines.",
+        "recommended_for": "Computer Science, IT, Electronics, Electrical & Mechanical Engineering",
+        "chapters": DEFAULT_CHAPTERS,
+    },
+    {
+        "id": "mca_msc",
+        "name": "MCA / M.Sc Computer Science",
+        "description": "Software-engineering centric structure with SRS, database modeling, and detailed module testing.",
+        "recommended_for": "MCA, M.Sc IT, Software Engineering",
+        "chapters": [
+            "Introduction and Problem Definition",
+            "Literature Review and Theoretical Background",
+            "Software Requirements Specification (SRS)",
+            "System Architecture and Database Design",
+            "Module Implementation and Workflow",
+            "Software Testing and Quality Assurance",
+            "Results and Performance Analysis",
+            "Conclusion and Future Enhancements",
+            "References",
+        ],
+    },
+    {
+        "id": "ai_ml",
+        "name": "AI / Machine Learning & Data Science",
+        "description": "Specialized structure covering dataset curation, feature engineering, model architecture, metrics, and deployment.",
+        "recommended_for": "AI/ML, Data Science, Deep Learning, NLP & Computer Vision Projects",
+        "chapters": [
+            "Introduction and Problem Motivation",
+            "Literature Survey and Related Work",
+            "Problem Formulation and Dataset Analysis",
+            "Proposed Methodology and Model Architecture",
+            "Model Training and Implementation",
+            "Experimental Evaluation and Metrics",
+            "System Workflow and Deployment",
+            "Conclusion and Limitations",
+            "References",
+        ],
+    },
+    {
+        "id": "mini_project",
+        "name": "Mini Project / Fast Track (6 Chapters)",
+        "description": "Concise and focused outline ideal for 3rd year mini projects or rapid prototype reports.",
+        "recommended_for": "Mini-projects, Semester Term Papers, Hackathon submissions",
+        "chapters": [
+            "Introduction and Objectives",
+            "Requirement Analysis",
+            "System Architecture and Design",
+            "Implementation and Code Walkthrough",
+            "Testing and Output Verification",
+            "Conclusion and References",
+        ],
+    },
+    {
+        "id": "ieee_research",
+        "name": "IEEE / Research Paper Report",
+        "description": "Formal academic thesis outline emphasizing theoretical modeling, algorithm formulation, and comparative evaluation.",
+        "recommended_for": "M.Tech / MS Thesis, Research Projects, Conference Papers",
+        "chapters": [
+            "Introduction",
+            "Related Work and Background",
+            "Mathematical and Architectural Formulation",
+            "Proposed Methodology and Algorithm",
+            "Implementation Details",
+            "Experimental Results and Comparative Analysis",
+            "Discussion and Conclusion",
+            "References",
+        ],
+    },
+]
+
 
 SYSTEM_SAFETY = """
 You generate academic project reports using the student's own project data as the primary source.

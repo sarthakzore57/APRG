@@ -87,6 +87,7 @@ export const api = {
     return request("/auth/login", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   },
   projects: () => request("/projects"),
+  templates: () => request("/projects/templates"),
   createProject: (payload) => request("/projects", { method: "POST", body: JSON.stringify(payload) }),
   updateProject: (id, payload) => request(`/projects/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
   project: (id) => request(`/projects/${id}`),
