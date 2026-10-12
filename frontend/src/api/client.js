@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
+const API_URL = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? "http://localhost:8000/api" : "https://gaai-aprg-backend-0xoy.onrender.com/api");
 
 export function getToken() {
   return localStorage.getItem("aprg_token");
