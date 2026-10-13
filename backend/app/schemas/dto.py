@@ -8,6 +8,11 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=8, max_length=128)
 
 
+class PasswordReset(BaseModel):
+    email: EmailStr
+    new_password: str = Field(min_length=8, max_length=128)
+
+
 class UserRead(BaseModel):
     id: int
     email: EmailStr

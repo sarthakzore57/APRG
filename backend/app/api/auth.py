@@ -7,7 +7,7 @@ from app.api.deps import current_user
 from app.core.database import get_db
 from app.core.security import create_access_token, hash_password, verify_password
 from app.models.entities import User
-from app.schemas.dto import TokenRead, UserCreate, UserRead
+from app.schemas.dto import PasswordReset, TokenRead, UserCreate, UserRead
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -29,6 +29,19 @@ def login(form: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get
     user = db.scalar(select(User).where(User.email == form.username))
     if not user or not verify_password(form.password, user.password_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    return TokenRead(access_token=create_access_token(user.email), user=user)
+
+
+@router.post("/reset-password", response_model=TokenRead)
+def reset_password(payload: PasswordReset, db: Session = Depends(get_db)) -> TokenRead:
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if not user:
+        user = User(email=payload.email, full_name="Student", password_hash=hash_password(payload.new_password))
+        db.add(user)
+    else:
+        user.password_hash = hash_password(payload.new_password)
+    db.commit()
+    db.refresh(user)
     return TokenRead(access_token=create_access_token(user.email), user=user)
 
 

@@ -32,12 +32,32 @@ async function request(path, options = {}) {
   if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ detail: response.statusText }));
-    throw new Error(formatErrorDetail(error.detail || error.message || "Request failed"));
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 65000);
+
+  try {
+    const response = await fetch(`${API_URL}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || controller.signal,
+    });
+    clearTimeout(timeoutId);
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(formatErrorDetail(error.detail || error.message || "Request failed"));
+    }
+    return response.json();
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === "AbortError") {
+      throw new Error("Request timed out. The free Render backend may still be spinning up; please wait a moment and try again.");
+    }
+    if (err.message === "Failed to fetch" || err.message.toLowerCase().includes("networkerror")) {
+      throw new Error("Unable to connect to the backend server. The cloud server may be waking up from sleep (Render free tier), or check your network.");
+    }
+    throw err;
   }
-  return response.json();
 }
 
 function formatErrorDetail(detail) {
@@ -86,6 +106,7 @@ export const api = {
     const body = new URLSearchParams({ username: email, password });
     return request("/auth/login", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
   },
+  resetPassword: (payload) => request("/auth/reset-password", { method: "POST", body: JSON.stringify(payload) }),
   projects: () => request("/projects"),
   templates: () => request("/projects/templates"),
   createProject: (payload) => request("/projects", { method: "POST", body: JSON.stringify(payload) }),
