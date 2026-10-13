@@ -1,3 +1,4 @@
+import logging
 from sqlalchemy.orm import Session
 
 from app.models.entities import FileKind, JobStatus, ReportJob, StoredFile
@@ -7,6 +8,8 @@ from app.services.docx_writer import DocxReportWriter
 from app.services.project_analyzer import analyze_project
 from app.services.prompting import DEFAULT_CHAPTERS, diagram_prompt, project_context, report_prompt, validation_prompt
 from app.services.rag import RagService
+
+logger = logging.getLogger(__name__)
 
 
 def run_report_job(db: Session, job_id: int) -> None:
@@ -37,22 +40,28 @@ def run_report_job(db: Session, job_id: int) -> None:
         context = project_context(project, profile, extracted, chunks)
         chapters = project.custom_chapters or DEFAULT_CHAPTERS
 
-        job.message = f"Generating report with Gemini using {len(chunks)} RAG reference chunk(s)"
+        job.message = f"Writing report with Gemini ({len(material_files)} project file(s), {len(chunks)} reference chunk(s))"
         db.commit()
         report = ai.generate_json(report_prompt(context, chapters))
 
-        job.message = "Validating report"
+        job.message = "Validating report against curriculum guidelines"
         db.commit()
         validation = ai.generate_json(validation_prompt(context, report))
 
-        job.message = "Generating and rendering diagrams"
+        job.message = "Rendering architecture schematics"
         db.commit()
-        diagram_defs = ai.generate_json(diagram_prompt(context))
-        diagrams = DiagramRenderer().render_many(diagram_defs.get("diagrams", []))
+        diagrams = []
+        try:
+            diagram_defs = ai.generate_json(diagram_prompt(context))
+            diagrams = DiagramRenderer().render_many(diagram_defs.get("diagrams", []))
+        except Exception as diagram_err:
+            logger.warning("Diagram generation skipped: %s", diagram_err)
 
         project.generated_report = {**report, "diagrams": diagrams}
         project.validation = validation
 
+        job.message = "Compiling Word DOCX document"
+        db.commit()
         writer = DocxReportWriter()
         key, size = writer.build(project, report, diagrams, screenshots, validation)
         generated = StoredFile(
@@ -73,6 +82,7 @@ def run_report_job(db: Session, job_id: int) -> None:
         db.commit()
     except Exception as exc:
         db.rollback()
+        logger.exception("Report generation job %d failed: %s", job_id, exc)
         job = db.get(ReportJob, job_id)
         if job:
             job.status = JobStatus.failed
