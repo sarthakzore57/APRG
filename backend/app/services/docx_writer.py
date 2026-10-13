@@ -56,19 +56,25 @@ class DocxReportWriter:
         if diagrams:
             doc.add_heading("Figures and Diagrams", 1)
             for idx, diagram in enumerate(diagrams, start=1):
-                path = self.storage.path_for(diagram["storage_key"])
-                self._add_fitted_picture(doc, path, max_width=6.1, max_height=6.8)
-                caption = doc.add_paragraph(f"Figure {idx}: {diagram['title']}")
-                caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                try:
+                    path = self.storage.path_for(diagram["storage_key"])
+                    if self._add_fitted_picture(doc, path, max_width=6.1, max_height=6.8):
+                        caption = doc.add_paragraph(f"Figure {idx}: {diagram['title']}")
+                        caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                except Exception:
+                    pass
 
         if screenshots:
             doc.add_heading("Project Screenshots", 1)
             offset = len(diagrams)
             for idx, file in enumerate(screenshots, start=1):
-                path = self.storage.path_for(file.storage_key)
-                self._add_fitted_picture(doc, path, max_width=6.1, max_height=6.8)
-                caption = doc.add_paragraph(f"Figure {offset + idx}: {file.original_name}")
-                caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                try:
+                    path = self.storage.restore_if_missing(file.storage_key, file.file_bytes)
+                    if self._add_fitted_picture(doc, path, max_width=6.1, max_height=6.8):
+                        caption = doc.add_paragraph(f"Figure {offset + idx}: {file.original_name}")
+                        caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                except Exception:
+                    pass
 
         doc.add_heading("AI Validation", 1)
         doc.add_paragraph(f"Consistency score: {validation.get('score', 'Not available')}")
@@ -198,15 +204,20 @@ class DocxReportWriter:
             element.set(qn("w:space"), "0")
             element.set(qn("w:color"), "000000")
 
-    def _add_fitted_picture(self, doc: Document, path, max_width: float, max_height: float) -> None:
-        # python-docx accepts a string filename or a seekable binary stream. A
-        # pathlib.Path is neither on Windows, so passing it directly makes the
-        # library call ``seek`` on WindowsPath and abort report generation.
-        image = Image.from_file(str(path))
-        width = image.px_width / (image.horz_dpi or 96)
-        height = image.px_height / (image.vert_dpi or 96)
-        scale = min(max_width / width, max_height / height, 1.0)
-        paragraph = doc.add_paragraph()
-        paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = paragraph.add_run()
-        run.add_picture(str(path), width=Inches(width * scale), height=Inches(height * scale))
+    def _add_fitted_picture(self, doc: Document, path, max_width: float, max_height: float) -> bool:
+        try:
+            p = Path(path)
+            if not p.exists():
+                return False
+            # python-docx accepts a string filename or a seekable binary stream.
+            image = Image.from_file(str(p))
+            width = image.px_width / (image.horz_dpi or 96)
+            height = image.px_height / (image.vert_dpi or 96)
+            scale = min(max_width / width, max_height / height, 1.0)
+            paragraph = doc.add_paragraph()
+            paragraph.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run = paragraph.add_run()
+            run.add_picture(str(p), width=Inches(width * scale), height=Inches(height * scale))
+            return True
+        except Exception:
+            return False
