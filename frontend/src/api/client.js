@@ -67,12 +67,28 @@ function formatErrorDetail(detail) {
       .map((item) => {
         if (typeof item === "string") return item;
         const location = Array.isArray(item?.loc) ? item.loc.join(".") : "";
+        if (location.includes("project_id")) {
+          return "Please save your project details on Page 1 (Project Specs) first before attaching materials or running generation.";
+        }
         return [location, item?.msg].filter(Boolean).join(": ") || JSON.stringify(item);
       })
       .join("\n");
   }
-  if (detail && typeof detail === "object") return detail.msg || JSON.stringify(detail);
+  if (detail && typeof detail === "object") {
+    if (detail.loc && Array.isArray(detail.loc) && detail.loc.join(".").includes("project_id")) {
+      return "Please save your project details on Page 1 (Project Specs) first before attaching materials or running generation.";
+    }
+    return detail.msg || JSON.stringify(detail);
+  }
   return "Request failed";
+}
+
+function validateProjectId(id) {
+  const num = Number(id);
+  if (!id || isNaN(num) || num <= 0 || !Number.isInteger(num)) {
+    throw new Error("Please save your project specification sheet on Page 1 first before proceeding.");
+  }
+  return num;
 }
 
 function filenameFromDisposition(disposition) {
@@ -110,13 +126,13 @@ export const api = {
   projects: () => request("/projects"),
   templates: () => request("/projects/templates"),
   createProject: (payload) => request("/projects", { method: "POST", body: JSON.stringify(payload) }),
-  updateProject: (id, payload) => request(`/projects/${id}`, { method: "PUT", body: JSON.stringify(payload) }),
-  project: (id) => request(`/projects/${id}`),
-  upload: (id, form) => request(`/projects/${id}/files`, { method: "POST", body: form }),
-  generate: (id) => request(`/projects/${id}/generate`, { method: "POST" }),
-  job: (projectId, jobId) => request(`/projects/${projectId}/jobs/${jobId}`),
-  editChapter: (id, payload) => request(`/projects/${id}/chapters`, { method: "PUT", body: JSON.stringify(payload) }),
-  regenerateChapter: (id, payload) => request(`/projects/${id}/chapters/regenerate`, { method: "POST", body: JSON.stringify(payload) }),
+  updateProject: (id, payload) => request(`/projects/${validateProjectId(id)}`, { method: "PUT", body: JSON.stringify(payload) }),
+  project: (id) => request(`/projects/${validateProjectId(id)}`),
+  upload: (id, form) => request(`/projects/${validateProjectId(id)}/files`, { method: "POST", body: form }),
+  generate: (id) => request(`/projects/${validateProjectId(id)}/generate`, { method: "POST" }),
+  job: (projectId, jobId) => request(`/projects/${validateProjectId(projectId)}/jobs/${jobId}`),
+  editChapter: (id, payload) => request(`/projects/${validateProjectId(id)}/chapters`, { method: "PUT", body: JSON.stringify(payload) }),
+  regenerateChapter: (id, payload) => request(`/projects/${validateProjectId(id)}/chapters/regenerate`, { method: "POST", body: JSON.stringify(payload) }),
   uploadKnowledge: (form) => request("/admin/knowledge-base", { method: "POST", body: form }),
-  downloadReport: (projectId, fileId, filename) => download(`/projects/${projectId}/download/${fileId}`, filename)
+  downloadReport: (projectId, fileId, filename) => download(`/projects/${validateProjectId(projectId)}/download/${fileId}`, filename)
 };

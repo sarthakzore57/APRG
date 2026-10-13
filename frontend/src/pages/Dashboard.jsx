@@ -203,16 +203,20 @@ export function Dashboard() {
     if (items[0]) setSelectedId(items[0].id);
   }
 
-  async function saveProject(event) {
-    event.preventDefault();
+  async function saveProject(event, andAdvance = false) {
+    if (event) event.preventDefault();
     setError("");
     try {
       const payload = { ...project, custom_chapters: parseChapters(project.custom_chapters) };
-      const saved = project.id ? await api.updateProject(project.id, payload) : await api.createProject(payload);
+      const hasValidId = Boolean(project?.id && Number.isInteger(Number(project.id)));
+      const saved = hasValidId ? await api.updateProject(project.id, payload) : await api.createProject(payload);
       setProject(saved);
       setSelectedId(saved.id);
       await loadProjects();
       setMessage("✓ Written & Saved in Logbook!");
+      if (andAdvance) {
+        goToPage(1);
+      }
     } catch (err) {
       setError(err.message);
     }
@@ -224,19 +228,36 @@ export function Dashboard() {
   }
 
   async function upload(event, kind) {
+    setError("");
+    if (!project?.id || !Number.isInteger(Number(project.id))) {
+      setError("⚠️ Please save your Project Details on Page 1 (Project Specs) first before attaching code or screenshots!");
+      goToPage(0);
+      return;
+    }
     const files = Array.from(event.target.files || []);
     if (!files.length) return;
-    for (const file of files) {
-      const form = new FormData();
-      form.append("kind", kind);
-      form.append("file", file);
-      await api.upload(project.id, form);
+    try {
+      for (const file of files) {
+        const form = new FormData();
+        form.append("kind", kind);
+        form.append("file", file);
+        await api.upload(project.id, form);
+      }
+      setMessage(`✓ Attached ${files.length} file(s) to experiment page`);
+      const refreshed = await api.project(project.id);
+      setProject(refreshed);
+    } catch (err) {
+      setError(err.message);
     }
-    setMessage(`✓ Attached ${files.length} file(s) to experiment page`);
   }
 
   async function generate() {
     setError("");
+    if (!project?.id || !Number.isInteger(Number(project.id))) {
+      setError("⚠️ Please save your project on Page 1 (Project Specs) first before generating the report!");
+      goToPage(0);
+      return;
+    }
     try {
       const created = await api.generate(project.id);
       setJob(created);
@@ -247,20 +268,34 @@ export function Dashboard() {
   }
 
   async function editChapter(title, content) {
-    const updated = await api.editChapter(project.id, { chapter: title, content });
-    setProject(updated);
-    setMessage(`✓ Ink updated for "${title}"`);
+    if (!project?.id) return;
+    try {
+      const updated = await api.editChapter(project.id, { chapter: title, content });
+      setProject(updated);
+      setMessage(`✓ Ink updated for "${title}"`);
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function regenerate(title, mode) {
-    setMessage(`Regenerating "${title}" (${mode})...`);
-    const updated = await api.regenerateChapter(project.id, { chapter: title, mode });
-    setProject(updated);
-    setMessage(`✓ Rewritten "${title}"`);
+    if (!project?.id) return;
+    try {
+      setMessage(`Regenerating "${title}" (${mode})...`);
+      const updated = await api.regenerateChapter(project.id, { chapter: title, mode });
+      setProject(updated);
+      setMessage(`✓ Rewritten "${title}"`);
+    } catch (err) {
+      setError(err.message);
+    }
   }
 
   async function downloadReport(fileId) {
     setError("");
+    if (!project?.id) {
+      setError("⚠️ Project must be saved first to download report.");
+      return;
+    }
     try {
       await api.downloadReport(project.id, fileId, `${project.title || "academic_report"}.docx`);
     } catch (err) {
@@ -428,6 +463,7 @@ export function Dashboard() {
                 upload={upload}
                 onPrev={() => goToPage(0)}
                 onNext={() => goToPage(2)}
+                goToPage={goToPage}
               />
             )}
 
@@ -440,6 +476,7 @@ export function Dashboard() {
                 downloadReport={downloadReport}
                 onPrev={() => goToPage(1)}
                 onNext={() => goToPage(3)}
+                goToPage={goToPage}
               />
             )}
 
@@ -739,6 +776,20 @@ function ProjectSpecsPage({ project, setProject, saveProject, onNext }) {
             onChange={(e) => set("custom_chapters", e.target.value)}
           />
         </div>
+
+        {/* Save & Advance footer button */}
+        <div className="mt-6 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-[#ded2bd]">
+          <span className="text-xs text-slate-500 font-handwriting">
+            {project?.id ? "✓ Project written in logbook" : "✍️ Remember to click Save Sheet before flipping to Materials"}
+          </span>
+          <button
+            type="submit"
+            className="btn-3d-primary py-2 px-5 text-base flex items-center gap-2"
+          >
+            <Save size={18} />
+            <span>Save Specifications</span>
+          </button>
+        </div>
       </div>
     </form>
   );
@@ -747,7 +798,9 @@ function ProjectSpecsPage({ project, setProject, saveProject, onNext }) {
 /* =========================================================================
    PAGE 2: MATERIALS & EXHIBITS (UPLOADS & SYSTEM BLUEPRINT)
    ========================================================================= */
-function MaterialsPage({ project, upload, onPrev, onNext }) {
+function MaterialsPage({ project, upload, onPrev, onNext, goToPage }) {
+  const isSaved = Boolean(project?.id && Number.isInteger(Number(project.id)));
+
   return (
     <div className="space-y-6">
       <div className="pb-2 border-b border-[#ded2bd]">
@@ -758,6 +811,25 @@ function MaterialsPage({ project, upload, onPrev, onNext }) {
           Attach project source code and UI screenshots. The AI will extract modules and insert captioned images into the Word report.
         </p>
       </div>
+
+      {!isSaved && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="text-amber-600 flex-shrink-0" size={22} />
+            <div>
+              <p className="font-bold font-kalam text-base">Project Not Saved Yet</p>
+              <p className="text-xs text-amber-800">Please fill out and click "Save Sheet" on Page 1 (Project Specs) first before attaching code files or screenshots.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => goToPage && goToPage(0)}
+            className="btn-3d-secondary py-1.5 px-3.5 text-xs font-bold"
+          >
+            📝 Go to Page 1 & Save
+          </button>
+        </div>
+      )}
 
       <div className="grid gap-5 md:grid-cols-2">
         {/* Source Code Dropzone */}
@@ -824,7 +896,8 @@ function MaterialsPage({ project, upload, onPrev, onNext }) {
 /* =========================================================================
    PAGE 3: EXECUTION WORKFLOW & TEACHER VALIDATION
    ========================================================================= */
-function ExecutionPage({ project, job, generate, downloadReport, onPrev, onNext }) {
+function ExecutionPage({ project, job, generate, downloadReport, onPrev, onNext, goToPage }) {
+  const isSaved = Boolean(project?.id && Number.isInteger(Number(project.id)));
   const isRunning = job && !["completed", "failed"].includes(job.status);
   const completedFile = job?.result_file_id;
 
@@ -838,6 +911,25 @@ function ExecutionPage({ project, job, generate, downloadReport, onPrev, onNext 
           Generate the complete thesis report, compile technical diagrams, and audit consistency.
         </p>
       </div>
+
+      {!isSaved && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-950 flex flex-wrap items-center justify-between gap-3 shadow-sm">
+          <div className="flex items-center gap-2.5">
+            <AlertTriangle className="text-amber-600 flex-shrink-0" size={22} />
+            <div>
+              <p className="font-bold font-kalam text-base">Project Not Saved in Logbook Yet</p>
+              <p className="text-xs text-amber-800">Please fill out and click "Save Sheet" on Page 1 before starting report generation.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => goToPage && goToPage(0)}
+            className="btn-3d-secondary py-1.5 px-3.5 text-xs font-bold"
+          >
+            📝 Go to Page 1 & Save
+          </button>
+        </div>
+      )}
 
       {/* 3D Action Execution Banner */}
       <div className="rounded-xl border border-[#ded2bd] bg-white/90 p-5 shadow-md flex flex-wrap items-center justify-between gap-4">
