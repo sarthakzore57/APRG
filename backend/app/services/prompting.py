@@ -131,22 +131,42 @@ NON-COPYABLE RAG REFERENCE CONTEXT:
 """
 
 
-def report_prompt(context: str, chapters: list[str]) -> str:
+def report_prompt(context: str, chapters: list[str], chapter_guidance: str = "") -> str:
+    guidance_block = f"\nCURRICULUM SPECIFICATIONS & MANDATORY SUBSECTIONS:\n{chapter_guidance}\n" if chapter_guidance else ""
     return f"""
 {context}
 
-Create an editable college project report as JSON:
+You are an expert academic supervisor and senior professor. Generate an exhaustive, university-grade academic project thesis report matching standard UGC, AICTE, and IEEE engineering guidelines.
+{guidance_block}
+
+Return strict JSON with this exact schema:
 {{
-  "chapters": [{{"title": "...", "content": "...", "tables": [{{"title": "...", "headers": [], "rows": [[]]}}]}}],
-  "references": ["..."],
-  "diagram_requests": ["System Architecture", "Flowchart", "Use Case", "DFD", "ER Diagram"]
+  "chapters": [
+    {{
+      "title": "Exact Chapter Title",
+      "content": "Comprehensive, deep multi-section academic text (minimum 500-1000 words per chapter). Structure every chapter with numbered sub-sections (e.g., '1.1 Conceptual Background & Motivation', '1.2 Problem Formulation & Architectural Challenges', '1.3 Detailed Technical Methodology & Algorithmic Logic', '1.4 Summary & Key Findings'). Thoroughly analyze the student's actual code files, database models, REST endpoints, and declared frameworks.",
+      "tables": [
+        {{
+          "title": "Descriptive Table Caption (e.g., Table 1.1: Comparative Literature Review Matrix)",
+          "headers": ["Parameter / Aspect", "Conventional Approaches", "Proposed Architecture", "Performance Impact"],
+          "rows": [["Criteria 1", "...", "...", "..."], ["Criteria 2", "...", "...", "..."]]
+        }}
+      ]
+    }}
+  ],
+  "references": [
+    "[1] S. Author and R. Co-Author, 'Foundational Research Title', IEEE Transactions on Software Engineering, vol. 48, no. 4, pp. 210-225, 2023.",
+    "[2] ..."
+  ],
+  "diagram_requests": ["System Architecture", "Use Case Diagram", "Data Flow Diagram", "Entity Relationship Diagram"]
 }}
-Use exactly these chapter titles in order: {chapters}.
-When RAG reference chunks are present, follow their academic structure and level of detail where relevant,
-but make every project-specific statement come from STUDENT PROJECT, STATIC PROJECT PROFILE, or UPLOADED MATERIAL EXTRACTS.
-Include useful academic tables where appropriate, such as requirement tables, module descriptions,
-test cases, technology stack, or comparison tables. Keep table cells concise and factual.
-Use clear academic language. Mark unavailable facts as "Not provided" rather than inventing.
+
+CRITICAL WRITING REQUIREMENTS:
+1. EXHAUSTIVE DEPTH: Never write superficial or summary paragraphs. Each chapter must read like an in-depth, formal 4-to-7 page university thesis chapter, detailing specific technologies, architectural layers, data structures, algorithms, protocols, and security practices found in the student's project files.
+2. STRUCTURED SUBSECTIONS: Every chapter MUST contain at least 3 to 5 structured numbered subheadings with deep analytical discussion.
+3. INFORMATIVE TABLES: Include useful academic tables in relevant chapters (e.g., Literature Survey Table in Chapter 2, Hardware/Software Specs in Chapter 4, Test Case Execution Matrix in Chapter 8, Performance Analysis Table in Chapter 9).
+4. FACTUAL GROUNDING: Derive all technical modules, database entities, and workflows from the student's project data and uploaded code files.
+5. COMPLETE COVERAGE: Generate full, comprehensive content for every single chapter in: {chapters}.
 """
 
 
@@ -154,17 +174,33 @@ def diagram_prompt(context: str) -> str:
     return f"""
 {context}
 
-Return JSON for technical diagrams:
+Generate formal technical diagrams for this academic engineering project in Mermaid syntax:
+Return valid JSON:
 {{
   "diagrams": [
-    {{"title": "System Architecture", "type": "mermaid", "definition": "flowchart TD..."}},
-    {{"title": "Flowchart", "type": "mermaid", "definition": "flowchart TD..."}},
-    {{"title": "Use Case", "type": "mermaid", "definition": "flowchart LR..."}},
-    {{"title": "DFD", "type": "mermaid", "definition": "flowchart TD..."}},
-    {{"title": "ER Diagram", "type": "mermaid", "definition": "erDiagram..."}}
+    {{
+      "title": "High-Level System Architecture",
+      "type": "mermaid",
+      "definition": "graph TD\\n  Client[User Web Client / Browser] --> API[FastAPI / REST Backend Engine]\\n  API --> DB[(Database / Storage Tier)]\\n  API --> AI[AI Intelligence Service]\\n  DB --> API\\n  AI --> API"
+    }},
+    {{
+      "title": "System Use Case Diagram",
+      "type": "mermaid",
+      "definition": "graph LR\\n  User((Student / User)) --> Auth[Authentication & Account]\\n  User --> Specs[Project Specification]\\n  User --> Upload[File & Material Upload]\\n  User --> Report[Report Generation]\\n  Admin((Faculty / Guide)) --> Review[Evaluation & Audit]"
+    }},
+    {{
+      "title": "Data Flow Diagram Level 1",
+      "type": "mermaid",
+      "definition": "graph TD\\n  Input[Source Code & Materials] --> Extractor[Parser & AST Extractor]\\n  Extractor --> Context[Context Aggregator]\\n  Context --> Model[AI Generation Engine]\\n  Model --> Builder[DOCX Document Compiler]\\n  Builder --> Output[Final Word Thesis]"
+    }},
+    {{
+      "title": "Entity Relationship Diagram",
+      "type": "mermaid",
+      "definition": "graph TD\\n  User[User: id, email, role] --> Project[Project: id, title, branch]\\n  Project --> Files[StoredFile: id, path, kind]\\n  Project --> Jobs[ReportJob: id, status, result]\\n  Jobs --> OutputFile[StoredFile: docx_id]"
+    }}
   ]
 }}
-Only include entities and flows supported by the student's project data.
+Only include entities, modules, and flows supported by the student's project data and uploaded files.
 """
 
 

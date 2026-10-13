@@ -54,7 +54,11 @@ class GeminiProvider(AIProvider):
             prompt
             + "\nReturn strict JSON only. Do not wrap it in markdown fences or add commentary."
         ).strip()
-        if text.startswith("```"):
+        import re
+        match = re.search(r"(\{.*\})", text, re.DOTALL)
+        if match:
+            text = match.group(1)
+        elif text.startswith("```"):
             text = text.strip("`")
             text = text.removeprefix("json").strip()
         return json.loads(text)
