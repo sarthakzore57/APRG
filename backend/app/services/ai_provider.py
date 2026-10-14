@@ -55,13 +55,30 @@ class GeminiProvider(AIProvider):
             + "\nReturn strict JSON only. Do not wrap it in markdown fences or add commentary."
         ).strip()
         import re
-        match = re.search(r"(\{.*\})", text, re.DOTALL)
+
+        cleaned = text
+        if "```json" in cleaned:
+            cleaned = cleaned.split("```json", 1)[1]
+            if "```" in cleaned:
+                cleaned = cleaned.split("```", 1)[0]
+        elif "```" in cleaned:
+            cleaned = cleaned.split("```", 1)[1]
+            if "```" in cleaned:
+                cleaned = cleaned.split("```", 1)[0]
+
+        cleaned = cleaned.strip()
+        match = re.search(r"(\{.*\})", cleaned, re.DOTALL)
         if match:
-            text = match.group(1)
-        elif text.startswith("```"):
-            text = text.strip("`")
-            text = text.removeprefix("json").strip()
-        return json.loads(text)
+            cleaned = match.group(1)
+
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            repaired = re.sub(r",\s*([\]\}])", r"\1", cleaned)
+            open_braces = repaired.count("{") - repaired.count("}")
+            open_brackets = repaired.count("[") - repaired.count("]")
+            repaired += ("]" * max(0, open_brackets)) + ("}" * max(0, open_braces))
+            return json.loads(repaired)
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         vectors: list[list[float]] = []

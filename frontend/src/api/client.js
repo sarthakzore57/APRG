@@ -132,7 +132,10 @@ export const api = {
   generate: (id) => request(`/projects/${validateProjectId(id)}/generate`, { method: "POST" }),
   job: (projectId, jobId) => request(`/projects/${validateProjectId(projectId)}/jobs/${jobId}`),
   editChapter: (id, payload) => request(`/projects/${validateProjectId(id)}/chapters`, { method: "PUT", body: JSON.stringify(payload) }),
-  regenerateChapter: (id, payload) => request(`/projects/${validateProjectId(id)}/chapters/regenerate`, { method: "POST", body: JSON.stringify(payload) }),
   uploadKnowledge: (form) => request("/admin/knowledge-base", { method: "POST", body: form }),
+  adminKnowledgeBase: () => request("/admin/knowledge-base"),
+  deleteKnowledge: (id) => request(`/admin/knowledge-base/${id}`, { method: "DELETE" }),
+  adminStats: () => request("/admin/stats"),
+  adminProjects: () => request("/admin/projects"),
   downloadReport: (projectId, fileId, filename) => download(`/projects/${validateProjectId(projectId)}/download/${fileId}`, filename)
 };

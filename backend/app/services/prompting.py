@@ -136,7 +136,7 @@ def report_prompt(context: str, chapters: list[str], chapter_guidance: str = "")
     return f"""
 {context}
 
-You are an expert academic supervisor and senior professor. Generate an exhaustive, university-grade academic project thesis report matching standard UGC, AICTE, and IEEE engineering guidelines.
+You are an expert academic supervisor and senior professor. Generate a complete, university-grade academic project thesis report matching standard UGC, AICTE, and IEEE engineering guidelines.
 {guidance_block}
 
 Return strict JSON with this exact schema:
@@ -144,7 +144,7 @@ Return strict JSON with this exact schema:
   "chapters": [
     {{
       "title": "Exact Chapter Title",
-      "content": "Comprehensive, deep multi-section academic text (minimum 500-1000 words per chapter). Structure every chapter with numbered sub-sections (e.g., '1.1 Conceptual Background & Motivation', '1.2 Problem Formulation & Architectural Challenges', '1.3 Detailed Technical Methodology & Algorithmic Logic', '1.4 Summary & Key Findings'). Thoroughly analyze the student's actual code files, database models, REST endpoints, and declared frameworks.",
+      "content": "Formal, detailed academic discussion (approx 350-500 words per chapter). Structure every chapter with numbered sub-sections (e.g., '1.1 Conceptual Background & Motivation', '1.2 Technical Architecture & Key Considerations', '1.3 Detailed Workflow & Implementation Details', '1.4 Summary & Key Takeaways'). Thoroughly analyze the student's actual project technologies, models, endpoints, and code logic.",
       "tables": [
         {{
           "title": "Descriptive Table Caption (e.g., Table 1.1: Comparative Literature Review Matrix)",
@@ -162,11 +162,10 @@ Return strict JSON with this exact schema:
 }}
 
 CRITICAL WRITING REQUIREMENTS:
-1. EXHAUSTIVE DEPTH: Never write superficial or summary paragraphs. Each chapter must read like an in-depth, formal 4-to-7 page university thesis chapter, detailing specific technologies, architectural layers, data structures, algorithms, protocols, and security practices found in the student's project files.
-2. STRUCTURED SUBSECTIONS: Every chapter MUST contain at least 3 to 5 structured numbered subheadings with deep analytical discussion.
+1. COMPLETE CHAPTER COVERAGE: You MUST output a chapter in 'chapters' for EVERY single chapter in this exact list: {chapters}. Do NOT omit, merge, or truncate any chapter in this list.
+2. STRUCTURED SUBSECTIONS: Every chapter MUST contain 3 to 4 structured numbered subheadings with rigorous technical discussion based on the student's project files.
 3. INFORMATIVE TABLES: Include useful academic tables in relevant chapters (e.g., Literature Survey Table in Chapter 2, Hardware/Software Specs in Chapter 4, Test Case Execution Matrix in Chapter 8, Performance Analysis Table in Chapter 9).
-4. FACTUAL GROUNDING: Derive all technical modules, database entities, and workflows from the student's project data and uploaded code files.
-5. COMPLETE COVERAGE: Generate full, comprehensive content for every single chapter in: {chapters}.
+4. FACTUAL GROUNDING: Ground all technical modules, entities, and workflows in the student's actual project data, algorithms, and uploaded files.
 """
 
 
@@ -174,33 +173,37 @@ def diagram_prompt(context: str) -> str:
     return f"""
 {context}
 
-Generate formal technical diagrams for this academic engineering project in Mermaid syntax:
-Return valid JSON:
+Generate formal technical diagrams for the student's academic project in Mermaid syntax.
+Model ONLY the student's project domain, architecture, data structures, and workflows (do NOT model report generators, Draftly, or compiler tools).
+
+Return valid JSON with exactly 4 diagrams:
 {{
   "diagrams": [
     {{
       "title": "High-Level System Architecture",
       "type": "mermaid",
-      "definition": "graph TD\\n  Client[User Web Client / Browser] --> API[FastAPI / REST Backend Engine]\\n  API --> DB[(Database / Storage Tier)]\\n  API --> AI[AI Intelligence Service]\\n  DB --> API\\n  AI --> API"
+      "definition": "graph TD\\n  UI[Client Interface / Frontend] --> API[Core Backend Service / Controller]\\n  API --> Logic[Processing Engine / Algorithms]\\n  Logic --> DB[(Database / Storage)]"
     }},
     {{
       "title": "System Use Case Diagram",
       "type": "mermaid",
-      "definition": "graph LR\\n  User((Student / User)) --> Auth[Authentication & Account]\\n  User --> Specs[Project Specification]\\n  User --> Upload[File & Material Upload]\\n  User --> Report[Report Generation]\\n  Admin((Faculty / Guide)) --> Review[Evaluation & Audit]"
+      "definition": "graph LR\\n  User((Primary User)) --> UC1[Primary Function]\\n  User --> UC2[Secondary Function]\\n  Admin((System Admin)) --> UC3[Manage & Monitor]"
     }},
     {{
-      "title": "Data Flow Diagram Level 1",
+      "title": "Data Flow Diagram (Level 1)",
       "type": "mermaid",
-      "definition": "graph TD\\n  Input[Source Code & Materials] --> Extractor[Parser & AST Extractor]\\n  Extractor --> Context[Context Aggregator]\\n  Context --> Model[AI Generation Engine]\\n  Model --> Builder[DOCX Document Compiler]\\n  Builder --> Output[Final Word Thesis]"
+      "definition": "graph TD\\n  Inputs[Input Data / Queries] --> Process1[Data Validation & Preprocessing]\\n  Process1 --> Process2[Core Algorithm Execution]\\n  Process2 --> Store[(Database Store)]\\n  Process2 --> Outputs[Results & Visual Displays]"
     }},
     {{
-      "title": "Entity Relationship Diagram",
+      "title": "Entity Relationship / Component Model",
       "type": "mermaid",
-      "definition": "graph TD\\n  User[User: id, email, role] --> Project[Project: id, title, branch]\\n  Project --> Files[StoredFile: id, path, kind]\\n  Project --> Jobs[ReportJob: id, status, result]\\n  Jobs --> OutputFile[StoredFile: docx_id]"
+      "definition": "graph TD\\n  Entity1[Main Entity: id, attributes] --> Entity2[Related Entity: id, foreign_key]\\n  Entity2 --> Entity3[Transaction / Log Record: id, metrics]"
     }}
   ]
 }}
-Only include entities, modules, and flows supported by the student's project data and uploaded files.
+IMPORTANT:
+1. Replace all placeholder names (UI, API, Entity1, etc.) with the student's REAL project components, algorithms, technologies, and databases.
+2. Keep Mermaid syntax simple, clean, and valid (use standard node labels, avoid special punctuation in node identifiers).
 """
 
 

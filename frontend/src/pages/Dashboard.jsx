@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  Database,
   Download,
   FileCode,
   FileText,
@@ -27,6 +28,8 @@ import {
   Save,
   ShieldCheck,
   Sparkles,
+  Trash2,
+  Users,
   Wand2,
 } from "lucide-react";
 import { api, getUser } from "../api/client";
@@ -149,12 +152,18 @@ export function Dashboard() {
 
   const selected = useMemo(() => projects.find((item) => item.id === selectedId), [projects, selectedId]);
 
-  const pageTabs = [
-    { id: 0, title: "1. Project Specs", subtitle: "Form & Outline" },
-    { id: 1, title: "2. Materials & Exhibits", subtitle: "Code & Uploads" },
-    { id: 2, title: "3. Execution & Grade", subtitle: "Workflow & Audit" },
-    { id: 3, title: "4. Thesis Manuscript", subtitle: "Editor & Word DOCX" },
-  ];
+  const pageTabs = useMemo(() => {
+    const tabs = [
+      { id: 0, title: "1. Project Specs", subtitle: "Form & Outline" },
+      { id: 1, title: "2. Materials & Exhibits", subtitle: "Code & Uploads" },
+      { id: 2, title: "3. Execution & Grade", subtitle: "Workflow & Audit" },
+      { id: 3, title: "4. Thesis Manuscript", subtitle: "Editor & Word DOCX" },
+    ];
+    if (user?.role === "admin") {
+      tabs.push({ id: 4, title: "5. Faculty Studio", subtitle: "Reports & Repository" });
+    }
+    return tabs;
+  }, [user?.role]);
 
   useEffect(() => {
     loadProjects().catch((err) => setError(err.message));
@@ -378,8 +387,28 @@ export function Dashboard() {
           </div>
         </div>
 
-        {/* Admin Knowledge Base Binder */}
-        {user?.role === "admin" && <AdminPanel />}
+        {/* Admin Knowledge Base Binder & Faculty Studio */}
+        {user?.role === "admin" && (
+          <div className="realistic-notebook p-3 relative shadow-book-3d space-y-2">
+            <div className="flex items-center justify-between border-b border-[#ded2bd] pb-1.5">
+              <span className="rough-stamp text-xs text-teal-800">FACULTY PORTAL</span>
+              <ShieldCheck size={16} className="text-teal-700" />
+            </div>
+            <p className="text-xs text-slate-600 font-handwriting">
+              Review all student project submissions, download compiled theses, and manage the knowledge repository.
+            </p>
+            <button
+              type="button"
+              onClick={() => goToPage(4)}
+              className={`btn-3d-primary w-full text-xs py-2 ${
+                activePageIndex === 4 ? "bg-teal-900 ring-2 ring-teal-500" : "bg-teal-800"
+              }`}
+            >
+              <ShieldCheck size={14} />
+              <span>{activePageIndex === 4 ? "Viewing Faculty Studio" : "Open Faculty Studio (Page 5)"}</span>
+            </button>
+          </div>
+        )}
       </aside>
 
       {/* Main 3D Book Stage (With Realistic Ruled Sheet & Page Flip Animation) */}
@@ -431,12 +460,16 @@ export function Dashboard() {
             <div className="flex items-center gap-2">
               <span className="rough-stamp text-xs text-[#1e40af]">DRAFTLY LOGBOOK</span>
               <span className="font-handwriting text-base font-bold text-slate-700">
-                {selected?.title ? selected.title.slice(0, 32) + "..." : "New Project Workspace"}
+                {activePageIndex === 4
+                  ? "Faculty Supervision & Repository Studio"
+                  : selected?.title
+                  ? selected.title.slice(0, 32) + "..."
+                  : "New Project Workspace"}
               </span>
             </div>
             <div className="flex items-center gap-4 text-sm font-handwriting text-slate-600 font-bold">
-              <span>DATE: <span className="underline decoration-dotted text-[#1e40af]">13 / 10 / 2026</span></span>
-              <span>PAGE: <span className="underline decoration-dotted text-[#1e40af]">0{activePageIndex + 1} of 04</span></span>
+              <span>DATE: <span className="underline decoration-dotted text-[#1e40af]">14 / 10 / 2026</span></span>
+              <span>PAGE: <span className="underline decoration-dotted text-[#1e40af]">0{activePageIndex + 1} of 0{pageTabs.length}</span></span>
             </div>
           </div>
 
@@ -490,6 +523,17 @@ export function Dashboard() {
                 onPrev={() => goToPage(2)}
               />
             )}
+
+            {/* PAGE 5: FACULTY & ADMIN STUDIO */}
+            {activePageIndex === 4 && user?.role === "admin" && (
+              <FacultyStudioPage
+                onSelectProject={(projId) => {
+                  setSelectedId(projId);
+                  goToPage(0);
+                }}
+                downloadReport={downloadReport}
+              />
+            )}
           </div>
 
           {/* Bottom Notebook Page Turn Navigation & Dog-Ear Corner */}
@@ -504,14 +548,14 @@ export function Dashboard() {
             </button>
 
             <div className="flex items-center gap-1.5 font-handwriting text-sm text-slate-500 font-bold">
-              <span>Sheet {activePageIndex + 1} of 4</span>
+              <span>Sheet {activePageIndex + 1} of {pageTabs.length}</span>
               <span>•</span>
               <span className="text-[#1e40af]">{pageTabs[activePageIndex]?.subtitle}</span>
             </div>
 
             <button
               type="button"
-              disabled={activePageIndex === 3}
+              disabled={activePageIndex >= pageTabs.length - 1}
               onClick={() => goToPage(activePageIndex + 1)}
               className="btn-3d-secondary py-1.5 px-3 text-sm disabled:opacity-30 disabled:cursor-not-allowed"
             >
@@ -523,7 +567,7 @@ export function Dashboard() {
           <div
             className="dog-ear hidden sm:block cursor-pointer"
             onClick={() => {
-              if (activePageIndex < 3) goToPage(activePageIndex + 1);
+              if (activePageIndex < pageTabs.length - 1) goToPage(activePageIndex + 1);
               else goToPage(0);
             }}
             title="Click to turn page"
@@ -1145,55 +1189,411 @@ function Chapter({ chapter, index, editChapter, regenerate }) {
   );
 }
 
-function AdminPanel() {
-  const [status, setStatus] = useState("");
+function FacultyStudioPage({ onSelectProject, downloadReport }) {
+  const [stats, setStats] = useState(null);
+  const [adminProjectsList, setAdminProjectsList] = useState([]);
+  const [kbDocs, setKbDocs] = useState([]);
+  const [activeTab, setActiveTab] = useState("theses"); // "theses" | "knowledge"
   const [loading, setLoading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState("");
+  const [error, setError] = useState("");
 
-  async function submit(event) {
-    event.preventDefault();
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
     setLoading(true);
-    setStatus("");
+    setError("");
     try {
-      const form = new FormData(event.currentTarget);
-      const result = await api.uploadKnowledge(form);
-      setStatus(`✓ ${result.chunks} reference sections successfully indexed!`);
-      event.currentTarget.reset();
+      const [s, p, k] = await Promise.all([
+        api.adminStats().catch(() => null),
+        api.adminProjects().catch(() => []),
+        api.adminKnowledgeBase().catch(() => []),
+      ]);
+      setStats(s);
+      setAdminProjectsList(p || []);
+      setKbDocs(k || []);
     } catch (err) {
-      setStatus(`Error: ${err.message}`);
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
+  async function handleUploadKnowledge(event) {
+    event.preventDefault();
+    setUploadStatus("Indexing approved project report into ChromaDB RAG...");
+    try {
+      const form = new FormData(event.currentTarget);
+      const res = await api.uploadKnowledge(form);
+      setUploadStatus(`✓ Successfully indexed ${res.chunks} curriculum sections into the knowledge repository!`);
+      event.currentTarget.reset();
+      await loadData();
+    } catch (err) {
+      setUploadStatus(`Error: ${err.message}`);
+    }
+  }
+
+  async function handleDeleteKb(id) {
+    if (!window.confirm("Remove this reference document from the academic repository?")) return;
+    try {
+      await api.deleteKnowledge(id);
+      await loadData();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
   return (
-    <form
-      onSubmit={submit}
-      className="realistic-notebook p-3.5 relative shadow-book-3d space-y-2.5"
-    >
-      <div className="flex items-center justify-between border-b border-[#ded2bd] pb-1.5">
-        <span className="rough-stamp text-xs text-teal-800">FACULTY REPOSITORY</span>
-        <ShieldCheck size={16} className="text-teal-700" />
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#ded2bd] pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 font-kalam">
+              Faculty & Admin Supervision Studio
+            </h2>
+            <span className="rounded bg-teal-100 px-2 py-0.5 text-xs font-bold text-teal-800 rough-stamp">
+              DEPARTMENT PORTAL
+            </span>
+          </div>
+          <p className="text-sm text-slate-600 font-handwriting mt-1">
+            Audit student submissions, download compiled theses, and maintain the university knowledge repository.
+          </p>
+        </div>
+        <button
+          onClick={loadData}
+          disabled={loading}
+          className="btn-3d-secondary py-1.5 px-3 text-xs flex items-center gap-1.5 font-handwriting"
+        >
+          <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+          <span>Refresh Data</span>
+        </button>
       </div>
-      <p className="text-xs text-slate-600 font-handwriting">
-        Upload approved university project reports for structural reference.
-      </p>
 
-      <input className="field text-xs py-1" name="college" placeholder="College / University" />
-      <input className="field text-xs py-1" name="branch" placeholder="Branch" />
-      <input className="field text-xs py-1" name="project_type" placeholder="Degree / Project Type" />
-      <input className="field text-xs py-1" name="technology" placeholder="Domain / Technology" />
-      <input className="field text-xs py-1" name="year" placeholder="Academic Year" />
-      <input className="block w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700" name="file" type="file" required />
+      {error && <Notice tone="error" text={error} />}
 
-      <button className="btn-3d-primary w-full text-xs py-2 bg-teal-800" disabled={loading}>
-        <Wand2 size={14} />
-        <span>{loading ? "Indexing..." : "Index Approved Report"}</span>
-      </button>
+      {/* Metrics Banner */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="rounded-xl border border-[#ded2bd] bg-white p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 font-handwriting">Total Student Projects</span>
+            <Users size={16} className="text-[#1e40af]" />
+          </div>
+          <p className="mt-1 text-2xl font-extrabold text-[#1e40af] font-mono">
+            {stats?.total_projects ?? adminProjectsList.length}
+          </p>
+          <span className="text-[11px] text-slate-400">Enrolled submissions</span>
+        </div>
 
-      {status && (
-        <p className="font-handwriting text-sm font-bold text-teal-800 text-center">{status}</p>
+        <div className="rounded-xl border border-[#ded2bd] bg-white p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 font-handwriting">Thesis Reports Ready</span>
+            <FileText size={16} className="text-emerald-600" />
+          </div>
+          <p className="mt-1 text-2xl font-extrabold text-emerald-600 font-mono">
+            {stats?.total_reports ?? adminProjectsList.filter((p) => p.has_report).length}
+          </p>
+          <span className="text-[11px] text-slate-400">Available for university audit</span>
+        </div>
+
+        <div className="rounded-xl border border-[#ded2bd] bg-white p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 font-handwriting">Reference Documents</span>
+            <Database size={16} className="text-teal-700" />
+          </div>
+          <p className="mt-1 text-2xl font-extrabold text-teal-800 font-mono">
+            {stats?.total_kb_docs ?? kbDocs.length}
+          </p>
+          <span className="text-[11px] text-slate-400">Department syllabus archives</span>
+        </div>
+
+        <div className="rounded-xl border border-[#ded2bd] bg-white p-3.5 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-500 font-handwriting">Indexed Knowledge Chunks</span>
+            <Sparkles size={16} className="text-amber-600" />
+          </div>
+          <p className="mt-1 text-2xl font-extrabold text-amber-700 font-mono">
+            {stats?.total_kb_chunks ?? 0}
+          </p>
+          <span className="text-[11px] text-slate-400">Vector embeddings in ChromaDB</span>
+        </div>
+      </div>
+
+      {/* Studio Navigation Sub-Tabs */}
+      <div className="flex border-b border-[#ded2bd] gap-2 pt-2">
+        <button
+          onClick={() => setActiveTab("theses")}
+          className={`py-2 px-4 text-sm font-bold font-kalam border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === "theses"
+              ? "border-[#1e40af] text-[#1e40af] bg-white/60 rounded-t"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <FileText size={16} />
+          <span>All Student Submissions ({adminProjectsList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("knowledge")}
+          className={`py-2 px-4 text-sm font-bold font-kalam border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === "knowledge"
+              ? "border-teal-700 text-teal-800 bg-white/60 rounded-t"
+              : "border-transparent text-slate-500 hover:text-slate-800"
+          }`}
+        >
+          <Database size={16} />
+          <span>Faculty Reference Repository ({kbDocs.length})</span>
+        </button>
+      </div>
+
+      {/* TAB 1: ALL STUDENT SUBMISSIONS & THESES */}
+      {activeTab === "theses" && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-[#ded2bd] bg-white overflow-hidden shadow-sm">
+            <div className="p-3 bg-slate-50 border-b border-[#ded2bd] flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 font-kalam uppercase tracking-wider">
+                Student Projects Directory
+              </span>
+              <span className="text-xs text-slate-500 font-handwriting">
+                Click "Download DOCX" to inspect any student's thesis document
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-100 text-slate-700 font-bold">
+                    <th className="p-3">Project Title</th>
+                    <th className="p-3">Student Name</th>
+                    <th className="p-3">Branch & Year</th>
+                    <th className="p-3">Technologies</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {adminProjectsList.map((item) => (
+                    <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                      <td className="p-3 font-bold text-slate-900 max-w-[220px]">
+                        <div className="truncate font-kalam text-sm">{item.title || "Untitled Project"}</div>
+                        {item.guide && (
+                          <div className="text-[11px] text-slate-400 font-normal">Guide: {item.guide}</div>
+                        )}
+                      </td>
+                      <td className="p-3 text-slate-700 font-handwriting text-sm">
+                        <div className="font-bold">{item.student_name}</div>
+                        <div className="text-[11px] text-slate-400">{item.owner_email}</div>
+                      </td>
+                      <td className="p-3 text-slate-600">
+                        <div>{item.branch || "General"}</div>
+                        <div className="text-[11px] text-slate-400">{item.academic_year || "2025-26"}</div>
+                      </td>
+                      <td className="p-3 text-slate-500 max-w-[150px] truncate">
+                        {item.technologies || "—"}
+                      </td>
+                      <td className="p-3">
+                        {item.has_report ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-bold text-emerald-800">
+                            <CheckCircle2 size={12} /> Ready
+                          </span>
+                        ) : item.job_status === "running" ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 animate-pulse">
+                            <RefreshCw size={11} className="animate-spin" /> Generating
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
+                            Draft Specs
+                          </span>
+                        )}
+                      </td>
+                      <td className="p-3 text-right space-x-1.5 whitespace-nowrap">
+                        {item.has_report && item.generated_file_id && (
+                          <button
+                            onClick={() =>
+                              downloadReport(
+                                item.id,
+                                item.generated_file_id,
+                                `${item.title || "thesis"}.docx`
+                              )
+                            }
+                            className="btn-3d-primary py-1 px-2.5 text-xs inline-flex items-center gap-1 bg-emerald-700"
+                            title="Download student's compiled Word document"
+                          >
+                            <Download size={13} />
+                            <span>Download DOCX</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => onSelectProject(item.id)}
+                          className="btn-3d-secondary py-1 px-2 text-xs font-handwriting"
+                          title="Open this sheet in the logbook"
+                        >
+                          Open Sheet
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!adminProjectsList.length && (
+                    <tr>
+                      <td colSpan={6} className="p-6 text-center text-slate-400 font-handwriting text-base">
+                        No student project sheets recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       )}
-    </form>
+
+      {/* TAB 2: FACULTY REFERENCE REPOSITORY & GUIDELINES */}
+      {activeTab === "knowledge" && (
+        <div className="space-y-6">
+          {/* Informational Guidance Notice (Directly answers the user's inquiry) */}
+          <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-4 text-xs text-teal-900 shadow-sm space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-sm text-teal-800 font-kalam">
+              <ShieldCheck size={18} />
+              <span>Guidelines on Faculty Reference Reports & Knowledge Base</span>
+            </div>
+            <p className="font-handwriting text-sm leading-relaxed text-teal-900">
+              💡 <strong>Is adding a report to the admin required?</strong> <u>No, it is optional!</u> Draftly generates complete, exhaustive university-standard reports with full chapters and architectural diagrams directly from the student's project specifications and source code.
+            </p>
+            <p className="font-handwriting text-sm leading-relaxed text-teal-800">
+              When faculty upload sample approved reports here, they are chunked and vectorized into ChromaDB. RAG uses these reference chunks to tailor college-specific formatting, syllabus conventions, or branch-specific research rigor for future generated documents.
+            </p>
+          </div>
+
+          <div className="grid gap-6 lg:grid-cols-5">
+            {/* Left: Indexed Reference Reports List */}
+            <div className="lg:col-span-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-bold text-base text-slate-800 font-kalam">
+                  Currently Indexed Faculty Reference Documents
+                </h3>
+                <span className="text-xs text-slate-400 font-mono">{kbDocs.length} Documents</span>
+              </div>
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {kbDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="rounded-lg border border-[#ded2bd] bg-white p-3 shadow-sm hover:shadow transition-all flex items-center justify-between gap-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded bg-teal-100 text-teal-800 px-1.5 py-0.5 text-[10px] font-bold uppercase font-mono">
+                          {doc.branch || "General"}
+                        </span>
+                        <h4 className="font-bold text-sm text-slate-900 truncate font-kalam">
+                          {doc.filename}
+                        </h4>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-slate-500 font-handwriting">
+                        {doc.college && <span>🏫 {doc.college}</span>}
+                        {doc.technology && <span>💻 {doc.technology}</span>}
+                        {doc.year && <span>📅 {doc.year}</span>}
+                        <span className="text-teal-700 font-bold">
+                          ✓ {doc.chunk_count} RAG chunks
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteKb(doc.id)}
+                      className="text-slate-400 hover:text-red-600 p-1.5 rounded transition-colors"
+                      title="Delete reference document"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ))}
+
+                {!kbDocs.length && (
+                  <div className="rounded-lg border border-dashed border-[#ded2bd] p-8 text-center bg-white/50">
+                    <Database size={28} className="mx-auto text-slate-400 mb-2" />
+                    <p className="font-handwriting text-base text-slate-600">
+                      No custom reference documents uploaded yet.
+                    </p>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Draftly is using the default university standard curriculum framework.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Right: Upload Approved Project Report Form */}
+            <div className="lg:col-span-2">
+              <form
+                onSubmit={handleUploadKnowledge}
+                className="realistic-notebook p-4 relative shadow-book-3d space-y-3"
+              >
+                <div className="flex items-center justify-between border-b border-[#ded2bd] pb-2">
+                  <span className="rough-stamp text-xs text-teal-800">INDEX NEW REFERENCE REPORT</span>
+                  <Wand2 size={16} className="text-teal-700" />
+                </div>
+                <p className="text-xs text-slate-600 font-handwriting">
+                  Upload an approved university thesis or project report (.pdf, .docx, .txt) to index into the knowledge base.
+                </p>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 font-kalam">College / University</label>
+                  <input className="field text-xs py-1.5" name="college" placeholder="e.g. Pune University / SPPU" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 font-kalam">Branch / Department</label>
+                    <input className="field text-xs py-1.5" name="branch" placeholder="e.g. Computer Science" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 font-kalam">Degree / Level</label>
+                    <input className="field text-xs py-1.5" name="project_type" placeholder="e.g. B.Tech / MCA" />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 font-kalam">Domain / Technology</label>
+                    <input className="field text-xs py-1.5" name="technology" placeholder="e.g. Machine Learning, Cloud" />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 font-kalam">Academic Year</label>
+                    <input className="field text-xs py-1.5" name="year" placeholder="e.g. 2025-26" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 font-kalam">Select Report File (.pdf, .docx, .txt) *</label>
+                  <input
+                    className="block w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 cursor-pointer mt-1"
+                    name="file"
+                    type="file"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn-3d-primary w-full text-xs py-2 bg-teal-800 flex items-center justify-center gap-1.5"
+                >
+                  <Wand2 size={14} />
+                  <span>Index Approved Report</span>
+                </button>
+
+                {uploadStatus && (
+                  <p className="font-handwriting text-xs font-bold text-teal-800 text-center bg-teal-50 p-2 rounded border border-teal-200">
+                    {uploadStatus}
+                  </p>
+                )}
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -12,83 +12,125 @@ from app.services.rag import RagService
 
 logger = logging.getLogger(__name__)
 
-IGNORE_PATTERNS = [
-    r"page\s*no",
-    r"certificate",
-    r"acknowledg",
-    r"abstract",
-    r"table\s*of\s*content",
-    r"index",
-    r"list\s*of\s*figure",
-    r"list\s*of\s*table",
-    r"list\s*of\s*abbreviation",
-    r"sr\.?\s*no",
-    r"serial\s*no",
-    r"title\s*of\s*chapter",
-    r"declaration",
-    r"^references?$",
-    r"^bibliography$",
-    r"^appendix",
+FRONT_MATTER_PATTERNS = [
+    r"^page\s*no",
+    r"^certificate",
+    r"^bonafide",
+    r"^acknowledg",
+    r"^abstract",
+    r"^table\s*of\s*content",
+    r"^index$",
+    r"^list\s*of\s*figure",
+    r"^list\s*of\s*table",
+    r"^list\s*of\s*abbreviation",
+    r"^declaration",
 ]
 
 
 def sanitize_and_structure_chapters(raw_chapters: list[str] | None) -> tuple[list[str], str]:
-    """Sanitizes user outlines by stripping out front-matter pages (Certificate, Abstract, etc.)
-    and grouping nested sub-topics into formal parent chapters."""
+    """Sanitizes user and template chapter outlines by filtering out front-matter pages
+    (Certificate, Abstract, etc.) while preserving all academic chapters in sequence."""
     if not raw_chapters:
         return (DEFAULT_CHAPTERS, "")
 
     filtered: list[str] = []
     for line in raw_chapters:
-        t = line.strip().lower()
-        if not t or any(re.search(pat, t) for pat in IGNORE_PATTERNS):
+        t = line.strip()
+        if not t or any(re.search(pat, t.lower()) for pat in FRONT_MATTER_PATTERNS):
             continue
-        filtered.append(line.strip())
+        filtered.append(t)
 
     if not filtered:
         return (DEFAULT_CHAPTERS, "")
 
-    # Check if this is already a concise list of chapters (<= 8 items with no sub-numberings)
-    has_subnumbering = any(re.search(r"\d+\.\d+", l) for l in filtered)
-    if not has_subnumbering and len(filtered) <= 8:
-        clean_names = [re.sub(r"^(?:chapter\s+\d+[:\s-]*|\d+[\.\)]\s*)", "", l, flags=re.I).strip() for l in filtered]
-        return ([c for c in clean_names if c], "")
-
-    # Parse multi-tier syllabus lists
+    # Group into chapters and nested subsections
     major_chapters: list[dict] = []
     current_chapter: dict | None = None
 
     for line in filtered:
-        cleaned = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
-        m_major = re.match(r"^(?:0([1-9])|chapter\s+(\d+))[:\s-]*(.*)$", cleaned, re.I)
-        if m_major:
-            c_num = m_major.group(1) or m_major.group(2)
-            c_name = m_major.group(3).strip()
-            c_name = re.sub(r"^chapter\s+\d+[:\s-]*", "", c_name, flags=re.I).strip()
-            title = c_name or f"Chapter {c_num}"
-            current_chapter = {"title": title, "subsections": []}
-            major_chapters.append(current_chapter)
-        elif current_chapter:
-            sub = re.sub(r"^\d+[\.\)]\s*", "", line).strip()
-            if sub:
-                current_chapter["subsections"].append(sub)
+        # Check if this line is an explicit sub-topic (e.g., "1.1 Background", "- item")
+        is_sub = bool(
+            re.match(r"^\d+\.\d+", line)
+            or line.startswith(("- ", "* ", "• ", "> "))
+        )
+        cleaned_title = re.sub(r"^(?:chapter\s+\d+[:\s-]*|\d+[\.\)]\s*)", "", line, flags=re.I).strip() or line.strip()
+
+        if is_sub and current_chapter:
+            current_chapter["subsections"].append(line.lstrip("-*•> ").strip())
         else:
-            if not re.search(r"^\d+\.\d+", cleaned):
-                current_chapter = {"title": cleaned, "subsections": []}
-                major_chapters.append(current_chapter)
+            current_chapter = {"title": cleaned_title, "subsections": []}
+            major_chapters.append(current_chapter)
 
-    if not major_chapters:
-        return (filtered[:7], "")
+    names = [c["title"] for c in major_chapters if c["title"]]
+    if not names:
+        return (DEFAULT_CHAPTERS, "")
 
-    names = [c["title"] for c in major_chapters]
-    guidance = ["Curriculum Chapter Structure & Required Subsections:"]
-    for idx, c in enumerate(major_chapters, start=1):
-        ctitle = c["title"]
-        guidance.append(f"Chapter {idx}: {ctitle}")
-        for sub in c["subsections"]:
-            guidance.append(f"  - {sub}")
+    guidance = ""
+    has_subsections = any(c["subsections"] for c in major_chapters)
+    if has_subsections:
+        lines = ["Curriculum Chapter Structure & Required Subsections:"]
+        for idx, c in enumerate(major_chapters, start=1):
+            lines.append(f"Chapter {idx}: {c['title']}")
+            for sub in c["subsections"]:
+                lines.append(f"  - {sub}")
+        guidance = "\n".join(lines)
 
-    return (names, "\n".join(guidance))
+    return (names, guidance)
+
+
+def get_project_fallback_diagrams(project) -> list[dict]:
+    tech = getattr(project, "technologies", "") or "Web Services, Database & APIs"
+    title_short = getattr(project, "title", "Project Application")[:40]
+    return [
+        {
+            "title": "High-Level System Architecture",
+            "type": "mermaid",
+            "definition": (
+                f"graph TD\n"
+                f"  Client[User Client / Presentation Layer] --> Gateway[API Gateway / Service Controller]\n"
+                f"  Gateway --> Engine[Core Business Logic & Processing Engine]\n"
+                f"  Engine --> Storage[(Database & Persistence Tier)]\n"
+                f"  Engine --> ExtServices[Component Stack: {tech[:35]}]\n"
+                f"  Storage --> Gateway\n"
+                f"  Gateway --> Client"
+            ),
+        },
+        {
+            "title": "System Use Case Diagram",
+            "type": "mermaid",
+            "definition": (
+                f"graph LR\n"
+                f"  User((Primary Operator)) --> Auth[Login & Authentication]\n"
+                f"  User --> InputData[Configure Parameters / Input Data]\n"
+                f"  User --> Process[Execute Core Operations]\n"
+                f"  User --> Results[View Reports & Visualizations]\n"
+                f"  Admin((System Administrator)) --> Manage[System Audit & Maintenance]"
+            ),
+        },
+        {
+            "title": "Data Flow Diagram (Level 1)",
+            "type": "mermaid",
+            "definition": (
+                f"graph TD\n"
+                f"  DataInput[Raw Inputs / Source Data] --> P1[Process 1: Ingestion & Validation]\n"
+                f"  P1 --> P2[Process 2: Core Algorithm / Computation Logic]\n"
+                f"  P2 --> DBStore[(Project Database Storage)]\n"
+                f"  P2 --> P3[Process 3: Output Formatting & Report Compilation]\n"
+                f"  P3 --> FinalReport[Final Thesis Delivery / Dashboard]"
+            ),
+        },
+        {
+            "title": "Entity Relationship / Component Model",
+            "type": "mermaid",
+            "definition": (
+                f"graph TD\n"
+                f"  UserAccount[USER: id, credentials, role] --> SessionLog[SESSION: session_id, timestamp]\n"
+                f"  UserAccount --> RecordEntity[RECORD: id, title, parameters]\n"
+                f"  RecordEntity --> ExecutionResult[RESULT: status, output_data, metrics]\n"
+                f"  ExecutionResult --> AuditReport[AUDIT: log_id, timestamp, verification]"
+            ),
+        },
+    ]
 
 
 def run_report_job(db: Session, job_id: int) -> None:
@@ -141,7 +183,7 @@ def run_report_job(db: Session, job_id: int) -> None:
         clean_report_chapters = []
         for ch in report.get("chapters", []):
             ch_t = ch.get("title", "").strip()
-            if any(re.search(pat, ch_t.lower()) for pat in IGNORE_PATTERNS):
+            if any(re.search(pat, ch_t.lower()) for pat in FRONT_MATTER_PATTERNS):
                 continue
             ch["title"] = re.sub(r"^(?:chapter\s+\d+[:\s-]*|\d+[\.\)]\s*)", "", ch_t, flags=re.I).strip() or ch_t
             clean_report_chapters.append(ch)
@@ -161,31 +203,9 @@ def run_report_job(db: Session, job_id: int) -> None:
         except Exception as diagram_err:
             logger.warning("AI diagram generation skipped: %s", diagram_err)
 
-        # Fallback to standard university schematics if empty
+        # Fallback to project-tailored schematics if empty
         if not diagrams:
-            default_defs = [
-                {
-                    "title": "High-Level System Architecture",
-                    "type": "mermaid",
-                    "definition": "graph TD\n  Client[User Web Client / Browser] --> API[FastAPI / REST Backend Engine]\n  API --> DB[(Database / Storage Tier)]\n  API --> AI[AI Intelligence & Generation Service]\n  DB --> API\n  AI --> API",
-                },
-                {
-                    "title": "System Use Case Diagram",
-                    "type": "mermaid",
-                    "definition": "graph LR\n  Student((Student / User)) --> Auth[Authentication & Account Setup]\n  Student --> Spec[Specification & Chapter Outline]\n  Student --> Up[Code & Materials Upload]\n  Student --> Gen[Automated Report Generation]\n  Admin((Faculty / Guide)) --> Eval[Report Evaluation & Audit]",
-                },
-                {
-                    "title": "Data Flow Diagram (Level 1)",
-                    "type": "mermaid",
-                    "definition": "graph TD\n  Inputs[Project Materials & Source Code] --> Extractor[Parser & AST Extractor]\n  Extractor --> Context[Context Aggregator]\n  Context --> GenEngine[Deep Academic Generation Engine]\n  GenEngine --> DocBuilder[DOCX Document Compiler]\n  DocBuilder --> FinalDoc[University Thesis Document]",
-                },
-                {
-                    "title": "Entity Relationship Model",
-                    "type": "mermaid",
-                    "definition": "graph TD\n  User[USER: id, email, role] --> Project[PROJECT: id, title, branch]\n  Project --> Files[STORED_FILES: id, path, kind]\n  Project --> Jobs[REPORT_JOBS: id, status, result]\n  Jobs --> FinalFile[OUTPUT_REPORT: file_id, docx]",
-                },
-            ]
-            diagrams = DiagramRenderer().render_many(default_defs)
+            diagrams = DiagramRenderer().render_many(get_project_fallback_diagrams(project))
 
         project.generated_report = {**report, "diagrams": diagrams}
         project.validation = validation

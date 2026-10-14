@@ -353,9 +353,12 @@ class DocxReportWriter:
         # Main Chapters rows with estimated sequential page numbers
         chapters = report.get("chapters", [])
         current_page = 1
+        has_ref_chapter = False
         for idx, chapter in enumerate(chapters, start=1):
             raw_title = chapter.get("title", f"Chapter {idx}")
             clean_title = re.sub(r"^(?:chapter\s+\d+[:\s-]*|\d+[:\s-]*)", "", raw_title, flags=re.I).strip() or raw_title
+            if clean_title.lower() in ("references", "bibliography"):
+                has_ref_chapter = True
             row = table.add_row()
             row.cells[0].text = f"Chapter {idx}"
             row.cells[1].text = clean_title
@@ -363,15 +366,17 @@ class DocxReportWriter:
             for i, cell in enumerate(row.cells):
                 self._style_cell(cell, bold=(i == 0), font_size=10.5)
                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER if i != 1 else WD_ALIGN_PARAGRAPH.LEFT
-            # Increment estimated page budget per chapter (approx 3-5 pages per deep chapter)
+            # Increment estimated page budget per chapter (approx 2-4 pages per chapter)
             current_page += max(2, len(chapter.get("content", "").split()) // 350 + 1)
 
         # Appendices rows
         appendices = [
             ("Appendix A", "System Architecture Schematics & Blueprints", str(current_page)),
             ("Appendix B", "Project Screenshots & Lab Exhibits", str(current_page + 2)),
-            ("-", "References & Bibliography (IEEE Format)", str(current_page + 4)),
         ]
+        if not has_ref_chapter:
+            appendices.append(("-", "References & Bibliography (IEEE Format)", str(current_page + 4)))
+
         for sr, title, pno in appendices:
             row = table.add_row()
             row.cells[0].text = sr
@@ -445,6 +450,25 @@ class DocxReportWriter:
             clean_title = re.sub(r"^(?:chapter\s+\d+[:\s-]*|\d+[:\s-]*)", "", raw_title, flags=re.I).strip() or raw_title
             doc.add_heading(f"CHAPTER {idx}: {clean_title.upper()}", 1)
 
+            # Special case: References / Bibliography chapter
+            if clean_title.lower() in ("references", "bibliography"):
+                doc.add_paragraph("Academic literature, research publications, and standard documentation consulted in IEEE citation format:")
+                refs = report.get("references", [])
+                if not refs:
+                    refs = [
+                        "[1] IEEE Standards Association, 'IEEE Standard for System and Software Engineering - Life Cycle Requirements', IEEE Std 12207-2017, pp. 1-120, 2017.",
+                        "[2] E. Gamma, R. Helm, R. Johnson, and J. Vlissides, 'Design Patterns: Elements of Reusable Object-Oriented Software', Addison-Wesley, 1994.",
+                        "[3] R. Fielding, 'Architectural Styles and the Design of Network-based Software Architectures', Doctoral Dissertation, UC Irvine, 2000.",
+                        "[4] Official Developer Guides, Standards & Architectural Specifications for Modern Software Systems, 2024.",
+                    ]
+                for ref in refs:
+                    ref_p = doc.add_paragraph(style="List Bullet")
+                    r = ref_p.add_run(str(ref))
+                    r.font.name = "Times New Roman"
+                    r.font.size = Pt(10.5)
+                doc.add_page_break()
+                continue
+
             # Deep Multi-paragraph Content Parsing
             raw_content = chapter.get("content", "")
             paragraphs = [p.strip() for p in raw_content.split("\n") if p.strip()]
@@ -454,7 +478,7 @@ class DocxReportWriter:
                 sub_match = re.match(r"^(?:(?:[0-9]+\.[0-9]+(?:\.[0-9]+)?)|#{2,3})\s+(.+)$", p_text)
                 if sub_match:
                     heading_text = p_text.lstrip("# ").strip()
-                    h2 = doc.add_heading(heading_text, 2)
+                    doc.add_heading(heading_text, 2)
                     continue
 
                 # Bullet points
@@ -503,28 +527,36 @@ class DocxReportWriter:
 
             # Inline Diagram Placement into Relevant Chapters
             title_lower = clean_title.lower()
-            if any(term in title_lower for term in ["architecture", "design", "methodology", "system", "data", "processing", "dataset", "analysis", "pipeline", "model"]):
+            is_design_or_arch = any(term in title_lower for term in ["architecture", "design", "methodology", "system", "data", "processing", "dataset", "analysis", "pipeline", "model", "workflow", "framework"])
+            chapter_diag_count = 0
+            if is_design_or_arch:
                 for d_i, diag in enumerate(diagrams):
-                    if d_i not in placed_diagram_indices:
+                    if d_i not in placed_diagram_indices and chapter_diag_count < 2:
                         placed_diagram_indices.add(d_i)
                         self._embed_diagram_inline(doc, diag, d_i + 1)
-                        if len(placed_diagram_indices) >= 2:
-                            break
-            elif idx in (2, 3) and not placed_diagram_indices and diagrams:
-                placed_diagram_indices.add(0)
-                self._embed_diagram_inline(doc, diagrams[0], 1)
+                        chapter_diag_count += 1
+            elif idx in (3, 4, 5, 6) and len(placed_diagram_indices) < len(diagrams):
+                for d_i, diag in enumerate(diagrams):
+                    if d_i not in placed_diagram_indices and chapter_diag_count < 1:
+                        placed_diagram_indices.add(d_i)
+                        self._embed_diagram_inline(doc, diag, d_i + 1)
+                        chapter_diag_count += 1
 
             # Inline Screenshot Placement into Results / Output / Implementation Chapters
-            if any(term in title_lower for term in ["result", "output", "implementation", "screen", "testing", "finding", "experiment", "evaluation"]):
+            is_output_or_impl = any(term in title_lower for term in ["result", "output", "implementation", "screen", "testing", "finding", "experiment", "evaluation", "verification"])
+            chapter_sc_count = 0
+            if is_output_or_impl:
                 for s_i, file in enumerate(screenshots):
-                    if s_i not in placed_screenshot_indices:
+                    if s_i not in placed_screenshot_indices and chapter_sc_count < 2:
                         placed_screenshot_indices.add(s_i)
                         self._embed_screenshot_inline(doc, file, s_i + 1)
-                        if len(placed_screenshot_indices) >= 3:
-                            break
-            elif idx in (4, 5) and not placed_screenshot_indices and screenshots:
-                placed_screenshot_indices.add(0)
-                self._embed_screenshot_inline(doc, screenshots[0], 1)
+                        chapter_sc_count += 1
+            elif idx >= 7 and len(placed_screenshot_indices) < len(screenshots):
+                for s_i, file in enumerate(screenshots):
+                    if s_i not in placed_screenshot_indices and chapter_sc_count < 1:
+                        placed_screenshot_indices.add(s_i)
+                        self._embed_screenshot_inline(doc, file, s_i + 1)
+                        chapter_sc_count += 1
 
             doc.add_page_break()
 
@@ -605,24 +637,29 @@ class DocxReportWriter:
                     pass
             doc.add_page_break()
 
-        # References Section (Formal IEEE Bibliography)
-        doc.add_heading("REFERENCES & BIBLIOGRAPHY", 1)
-        doc.add_paragraph("Academic literature, research publications, and standard documentation consulted:")
-        doc.add_paragraph()
+        # References Section (Formal IEEE Bibliography) - only if not already printed as body chapter
+        has_ref_chapter = any(
+            re.sub(r"^(?:chapter\s+\d+[:\s-]*|\d+[:\s-]*)", "", ch.get("title", ""), flags=re.I).strip().lower() in ("references", "bibliography")
+            for ch in report.get("chapters", [])
+        )
+        if not has_ref_chapter:
+            doc.add_heading("REFERENCES & BIBLIOGRAPHY", 1)
+            doc.add_paragraph("Academic literature, research publications, and standard documentation consulted:")
+            doc.add_paragraph()
 
-        refs = report.get("references", [])
-        if not refs:
-            refs = [
-                "[1] IEEE Standards Association, 'IEEE Standard for System and Software Engineering - Life Cycle Requirements', IEEE Std 12207-2017, pp. 1-120, 2017.",
-                "[2] E. Gamma, R. Helm, R. Johnson, and J. Vlissides, 'Design Patterns: Elements of Reusable Object-Oriented Software', Addison-Wesley, 1994.",
-                "[3] R. Fielding, 'Architectural Styles and the Design of Network-based Software Architectures', Doctoral Dissertation, UC Irvine, 2000.",
-                f"[4] Documentation and Technical Specifications for {project.technologies or 'Modern Web & AI Frameworks'}, Official Developer Guides, 2024.",
-            ]
+            refs = report.get("references", [])
+            if not refs:
+                refs = [
+                    "[1] IEEE Standards Association, 'IEEE Standard for System and Software Engineering - Life Cycle Requirements', IEEE Std 12207-2017, pp. 1-120, 2017.",
+                    "[2] E. Gamma, R. Helm, R. Johnson, and J. Vlissides, 'Design Patterns: Elements of Reusable Object-Oriented Software', Addison-Wesley, 1994.",
+                    "[3] R. Fielding, 'Architectural Styles and the Design of Network-based Software Architectures', Doctoral Dissertation, UC Irvine, 2000.",
+                    f"[4] Documentation and Technical Specifications for {project.technologies or 'Modern Web & AI Frameworks'}, Official Developer Guides, 2024.",
+                ]
 
-        for ref in refs:
-            ref_p = doc.add_paragraph(style="List Bullet")
-            r = ref_p.add_run(str(ref))
-            r.font.name = "Times New Roman"
+            for ref in refs:
+                ref_p = doc.add_paragraph(style="List Bullet")
+                r = ref_p.add_run(str(ref))
+                r.font.name = "Times New Roman"
             r.font.size = Pt(10.5)
 
     # -------------------------------------------------------------------------
