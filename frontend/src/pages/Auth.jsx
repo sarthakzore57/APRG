@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, CheckCircle2, Eye, EyeOff, KeyRound, LogIn, Mail, RefreshCw, Sparkles, User, UserPlus, Zap } from "lucide-react";
+import { BookOpen, CheckCircle2, Eye, EyeOff, KeyRound, LogIn, Mail, RefreshCw, ShieldCheck, Sparkles, User, UserPlus, Zap } from "lucide-react";
 import { api, checkServerHealth, setSession, warmupBackend } from "../api/client";
 
 export function Auth({ onAuthed }) {
@@ -108,6 +108,16 @@ export function Auth({ onAuthed }) {
       ...form,
       email: "sarthakzore237@gmail.com",
       password: "Sarthak@123",
+    });
+    setMode("login");
+    setError("");
+  }
+
+  function fillAdminCredentials() {
+    setForm({
+      ...form,
+      email: "admin@example.com",
+      password: "Admin@123",
     });
     setMode("login");
     setError("");
@@ -248,16 +258,24 @@ export function Auth({ onAuthed }) {
               </div>
             </div>
 
-            {/* Quick-Fill Default Student Credentials Helper */}
+            {/* Quick-Fill Verified Credentials Helpers */}
             {mode === "login" && (
-              <div className="pt-1">
+              <div className="pt-1 grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={fillDemoCredentials}
-                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold text-[#1e40af] bg-blue-50/80 hover:bg-blue-100/90 py-1.5 px-3 rounded border border-blue-200 transition-colors shadow-sm font-handwriting text-sm"
+                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold text-[#1e40af] bg-blue-50/80 hover:bg-blue-100/90 py-1.5 px-2.5 rounded border border-blue-200 transition-colors shadow-sm font-handwriting"
                 >
-                  <Zap size={14} className="text-amber-500 fill-amber-500" />
-                  <span>Auto-fill Verified Login (sarthakzore237@gmail.com)</span>
+                  <Zap size={14} className="text-amber-500 fill-amber-500 flex-shrink-0" />
+                  <span className="truncate">Student Login</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={fillAdminCredentials}
+                  className="w-full inline-flex items-center justify-center gap-1.5 text-xs font-bold text-[#7c2d12] bg-amber-50/90 hover:bg-amber-100 py-1.5 px-2.5 rounded border border-amber-300 transition-colors shadow-sm font-handwriting"
+                >
+                  <ShieldCheck size={14} className="text-amber-600 flex-shrink-0" />
+                  <span className="truncate">Admin / Faculty Login</span>
                 </button>
               </div>
             )}

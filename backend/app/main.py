@@ -55,6 +55,22 @@ def startup_sync_users():
             elif not user.password_hash:
                 user.password_hash = hash_password("Sarthak@123")
                 db.commit()
+
+            clean_admin_email = "admin@example.com"
+            admin = db.scalar(select(User).where(func.lower(User.email) == clean_admin_email))
+            if not admin:
+                admin = User(
+                    email=clean_admin_email,
+                    full_name="Administrator",
+                    password_hash=hash_password("Admin@123"),
+                    role=UserRole.admin,
+                )
+                db.add(admin)
+                db.commit()
+            else:
+                admin.role = UserRole.admin
+                admin.password_hash = hash_password("Admin@123")
+                db.commit()
     except Exception as e:
         import logging
         logging.getLogger(__name__).warning("Startup user sync skipped: %s", e)
