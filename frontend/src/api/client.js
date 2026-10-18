@@ -25,38 +25,86 @@ export function getUser() {
   }
 }
 
-async function request(path, options = {}) {
-  const headers = new Headers(options.headers || {});
-  const token = getToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  if (options.body && !(options.body instanceof FormData) && !headers.has("Content-Type")) {
-    headers.set("Content-Type", "application/json");
-  }
-
+export async function checkServerHealth(timeoutMs = 6000) {
+  const rootUrl = API_URL.replace(/\/api\/?$/, "");
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 65000);
-
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers,
-      signal: options.signal || controller.signal,
+    const res = await fetch(`${rootUrl}/health`, {
+      method: "GET",
+      cache: "no-store",
+      signal: controller.signal,
     });
-    clearTimeout(timeoutId);
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ detail: response.statusText }));
-      throw new Error(formatErrorDetail(error.detail || error.message || "Request failed"));
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    clearTimeout(timer);
+    return false;
+  }
+}
+
+export function warmupBackend() {
+  const rootUrl = API_URL.replace(/\/api\/?$/, "");
+  fetch(`${rootUrl}/health`, { method: "GET", cache: "no-store" }).catch(() => {});
+}
+
+async function request(path, options = {}) {
+  const { maxRetries = (options.method === "POST" && !path.startsWith("/auth/") ? 0 : 2), timeoutMs = 120000, onRetry, ...fetchOptions } = options;
+  let attempt = 0;
+
+  while (attempt <= maxRetries) {
+    attempt++;
+    const headers = new Headers(fetchOptions.headers || {});
+    const token = getToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+    if (fetchOptions.body && !(fetchOptions.body instanceof FormData) && !headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
     }
-    return response.json();
-  } catch (err) {
-    clearTimeout(timeoutId);
-    if (err.name === "AbortError") {
-      throw new Error("Request timed out. The free Render backend may still be spinning up; please wait a moment and try again.");
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(`${API_URL}${path}`, {
+        ...fetchOptions,
+        headers,
+        signal: fetchOptions.signal || controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      // Render edge proxy returns 502/503/504 while spinning up free instances
+      if ([502, 503, 504].includes(response.status) && attempt <= maxRetries) {
+        if (onRetry) onRetry(attempt, maxRetries);
+        await new Promise((r) => setTimeout(r, 2500));
+        continue;
+      }
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: response.statusText }));
+        throw new Error(formatErrorDetail(error.detail || error.message || "Request failed"));
+      }
+      return await response.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      const isNetworkOrTimeout =
+        err.name === "AbortError" ||
+        err.message === "Failed to fetch" ||
+        err.message.toLowerCase().includes("networkerror");
+
+      if (isNetworkOrTimeout && attempt <= maxRetries) {
+        if (onRetry) onRetry(attempt, maxRetries);
+        await new Promise((r) => setTimeout(r, 3000));
+        continue;
+      }
+
+      if (err.name === "AbortError") {
+        throw new Error("Request timed out. The free Render backend may still be spinning up; please wait a moment and try again.");
+      }
+      if (err.message === "Failed to fetch" || err.message.toLowerCase().includes("networkerror")) {
+        throw new Error("Unable to connect to the backend server. The cloud server may be waking up from sleep (Render free tier), or check your network.");
+      }
+      throw err;
     }
-    if (err.message === "Failed to fetch" || err.message.toLowerCase().includes("networkerror")) {
-      throw new Error("Unable to connect to the backend server. The cloud server may be waking up from sleep (Render free tier), or check your network.");
-    }
-    throw err;
   }
 }
 
@@ -117,19 +165,47 @@ async function download(path, fallbackName) {
 }
 
 export const api = {
-  register: (payload) => request("/auth/register", { method: "POST", body: JSON.stringify(payload) }),
-  login: async (email, password) => {
-    const body = new URLSearchParams({ username: email, password });
-    return request("/auth/login", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body });
+  register: (payload, options = {}) => {
+    const cleanPayload = {
+      ...payload,
+      email: (payload.email || "").trim().toLowerCase(),
+      full_name: (payload.full_name || "").trim(),
+    };
+    return request("/auth/register", { method: "POST", body: JSON.stringify(cleanPayload), ...options });
   },
-  resetPassword: (payload) => request("/auth/reset-password", { method: "POST", body: JSON.stringify(payload) }),
+  login: async (email, password, options = {}) => {
+    const cleanEmail = (email || "").trim().toLowerCase();
+    const cleanPassword = (password || "").trim();
+    const body = new URLSearchParams({ username: cleanEmail, password: cleanPassword });
+    return request("/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body,
+      timeoutMs: 120000,
+      maxRetries: 2,
+      ...options,
+    });
+  },
+  resetPassword: (payload, options = {}) => {
+    const cleanPayload = {
+      email: (payload.email || "").trim().toLowerCase(),
+      new_password: (payload.new_password || payload.password || "").trim(),
+    };
+    return request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(cleanPayload),
+      timeoutMs: 120000,
+      maxRetries: 2,
+      ...options,
+    });
+  },
   projects: () => request("/projects"),
   templates: () => request("/projects/templates"),
   createProject: (payload) => request("/projects", { method: "POST", body: JSON.stringify(payload) }),
   updateProject: (id, payload) => request(`/projects/${validateProjectId(id)}`, { method: "PUT", body: JSON.stringify(payload) }),
   project: (id) => request(`/projects/${validateProjectId(id)}`),
   upload: (id, form) => request(`/projects/${validateProjectId(id)}/files`, { method: "POST", body: form }),
-  generate: (id) => request(`/projects/${validateProjectId(id)}/generate`, { method: "POST" }),
+  generate: (id) => request(`/projects/${validateProjectId(id)}/generate`, { method: "POST", timeoutMs: 180000 }),
   job: (projectId, jobId) => request(`/projects/${validateProjectId(projectId)}/jobs/${jobId}`),
   editChapter: (id, payload) => request(`/projects/${validateProjectId(id)}/chapters`, { method: "PUT", body: JSON.stringify(payload) }),
   uploadKnowledge: (form) => request("/admin/knowledge-base", { method: "POST", body: form }),

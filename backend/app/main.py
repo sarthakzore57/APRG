@@ -9,10 +9,18 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name)
 
 origins = [origin.strip() for origin in settings.frontend_origin.split(",") if origin.strip()]
+for default_origin in [
+    "https://draftly-aprg.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:5173",
+]:
+    if default_origin not in origins:
+        origins.append(default_origin)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
+    allow_origins=origins,
     allow_origin_regex=r"^https://.*\.vercel\.app$|^https://.*\.onrender\.com$|^http://localhost:\d+$",
     allow_credentials=True,
     allow_methods=["*"],
@@ -27,24 +35,25 @@ app.include_router(admin.router, prefix="/api")
 @app.on_event("startup")
 def startup_sync_users():
     try:
-        from sqlalchemy import select
+        from sqlalchemy import func, select
         from app.core.database import SessionLocal
         from app.core.security import hash_password
         from app.models.entities import User, UserRole
 
         with SessionLocal() as db:
-            user = db.scalar(select(User).where(User.email == "sarthakzore237@gmail.com"))
-            if user:
-                user.password_hash = hash_password("Sarthak@123")
-                db.commit()
-            else:
+            clean_email = "sarthakzore237@gmail.com"
+            user = db.scalar(select(User).where(func.lower(User.email) == clean_email))
+            if not user:
                 user = User(
-                    email="sarthakzore237@gmail.com",
+                    email=clean_email,
                     full_name="Sarthak Zore",
                     password_hash=hash_password("Sarthak@123"),
                     role=UserRole.student,
                 )
                 db.add(user)
+                db.commit()
+            elif not user.password_hash:
+                user.password_hash = hash_password("Sarthak@123")
                 db.commit()
     except Exception as e:
         import logging
