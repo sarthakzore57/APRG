@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     local_storage_path: str = "storage"
     chroma_path: str = "storage/chroma"
     max_upload_mb: int = 25
-    allowed_upload_extensions: str = ".py,.js,.jsx,.ts,.tsx,.java,.cs,.cpp,.c,.php,.rb,.go,.rs,.sql,.html,.css,.json,.md,.txt,.pdf,.docx,.png,.jpg,.jpeg,.webp"
+    allowed_upload_extensions: str = ".py,.js,.jsx,.ts,.tsx,.java,.cs,.cpp,.c,.php,.rb,.go,.rs,.sql,.html,.css,.json,.md,.txt,.pdf,.docx,.png,.jpg,.jpeg,.webp,.csv,.xlsx,.xls,.r,.m,.xml,.yaml,.yml"
     render_base_url: str | None = None
     kroki_url: str | None = None
 

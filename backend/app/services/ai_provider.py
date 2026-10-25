@@ -24,6 +24,10 @@ class AIProvider(ABC):
     def embed(self, texts: list[str]) -> list[list[float]]:
         raise NotImplementedError
 
+    @abstractmethod
+    def describe_image(self, image_bytes: bytes, mime_type: str = "image/png", prompt: str = "") -> str:
+        raise NotImplementedError
+
 
 class GeminiProvider(AIProvider):
     def __init__(self) -> None:
@@ -86,6 +90,42 @@ class GeminiProvider(AIProvider):
             result = self._embed_with_retry(text)
             vectors.append(result.embeddings[0].values)
         return vectors
+
+    def describe_image(self, image_bytes: bytes, mime_type: str = "image/png", prompt: str = "") -> str:
+        from google.genai import types
+
+        instruction = prompt or (
+            "Analyze this uploaded project attachment image (which may be a technical diagram, "
+            "CAD / architectural drawing, site photograph, laboratory test graph, structural model, "
+            "schematic circuit, calculation sheet, survey chart, or software UI). "
+            "1. Identify the academic discipline/domain (e.g. Civil Engineering, Mechanical, Electrical, Computer Science, Management, etc.). "
+            "2. Extract ALL readable text, axis metrics, table values, equations, labels, and component names. "
+            "3. Detail the technical workflow, structural elements, process steps, or physical setup shown. "
+            "4. Summarize the key empirical findings, test results, or design parameters so they can be cited in a formal academic project report."
+        )
+        try:
+            part = types.Part.from_bytes(data=image_bytes, mime_type=mime_type)
+        except Exception:
+            return "Image exhibit provided as project empirical documentation."
+
+        last_error: Exception | None = None
+        for model in self.settings.generation_models:
+            for attempt in range(self.settings.gemini_max_retries + 1):
+                try:
+                    response = self.client.models.generate_content(
+                        model=model,
+                        contents=[instruction, part],
+                    )
+                    return response.text or ""
+                except (APIError, ServerError) as exc:
+                    last_error = exc
+                    if not self._should_retry(exc) or attempt == self.settings.gemini_max_retries:
+                        break
+                    time.sleep(self.settings.gemini_retry_delay_seconds * (attempt + 1))
+                except Exception as exc:
+                    last_error = exc
+                    break
+        return "Image exhibit provided as project empirical documentation."
 
     def _embed_with_retry(self, text: str):
         last_error: Exception | None = None

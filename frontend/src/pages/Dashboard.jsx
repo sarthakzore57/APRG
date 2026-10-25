@@ -40,25 +40,80 @@ const FALLBACK_TEMPLATES = [
     name: "B.Tech / B.E. Major Project",
     badge: "12 Chapters",
     description: "Standard engineering format with system analysis, design, testing & results.",
-    recommended_for: "CSE, IT, ECE, Mechanical, Civil",
+    recommended_for: "CSE, IT, ECE, Mechanical, Civil & Multidisciplinary",
     chapters: [
       "Introduction",
       "Literature Survey",
-      "Objectives",
-      "Requirements",
-      "System Analysis",
-      "System Design",
-      "Implementation",
-      "Testing",
-      "Results",
+      "Objectives and Scope",
+      "Specifications and Requirements",
+      "Theoretical and Design Methodology",
+      "System and Architectural Modeling",
+      "Implementation and Experimental Setup",
+      "Testing and Verification",
+      "Results and Performance Discussion",
       "Conclusion",
       "Future Scope",
       "References",
     ],
   },
   {
+    id: "civil_structural",
+    name: "Civil & Structural Engineering",
+    badge: "10 Chapters",
+    description: "RCC structures, concrete mix design, geotechnical investigations, IS codes & BOQ.",
+    recommended_for: "Civil, Structural, Construction Tech, Transportation, Environmental",
+    chapters: [
+      "Introduction and Project Significance",
+      "Literature Survey and Standard Codes (IS / ASTM / Eurocode)",
+      "Site Investigation and Material Characterization",
+      "Structural Analysis, Design Philosophy and Load Calculations",
+      "Laboratory Testing and Concrete Mix Proportioning",
+      "Modeling, Simulation and Structural Load Distribution",
+      "Project Scheduling and Quantity Estimation (BOQ)",
+      "Results, Structural Verification and Discussion",
+      "Conclusion and Environmental Sustainability",
+      "References and Standard Regulatory Codes",
+    ],
+  },
+  {
+    id: "mech_electrical",
+    name: "Mechanical & Electrical Engineering",
+    badge: "9 Chapters",
+    description: "CAD/FEA, thermal power cycles, circuits, robotics, fabrication & testing.",
+    recommended_for: "Mechanical, Automobile, Production, Electrical (EEE), Electronics (ECE)",
+    chapters: [
+      "Introduction and Engineering Context",
+      "Literature Review and Technological State of the Art",
+      "Design Specifications and Mathematical Formulation",
+      "Component Modeling, CAD / Circuit Layout and Simulation",
+      "Fabrication, Assembly and Experimental Test Rig Setup",
+      "Performance Evaluation, Testing and Benchmark Verification",
+      "Cost Analysis, Safety Considerations and Compliance",
+      "Conclusion and Future Enhancements",
+      "References",
+    ],
+  },
+  {
+    id: "management_commerce",
+    name: "Business Management & Non-Tech",
+    badge: "9 Chapters",
+    description: "Industry overview, empirical survey sampling, regression, ROI & strategic plan.",
+    recommended_for: "MBA, BBA, Commerce, Finance, Supply Chain, Marketing, Economics",
+    chapters: [
+      "Executive Summary and Industry Background",
+      "Literature Review and Theoretical Conceptual Framework",
+      "Research Methodology, Sampling and Data Collection",
+      "Environmental, Operational and Market Investigation",
+      "Implementation Strategy and Value Chain Operations",
+      "Empirical Findings, Statistical Analysis and Discussion",
+      "Financial Viability, Risk Governance and ROI Evaluation",
+      "Strategic Recommendations and Conclusion",
+      "References and Appendices",
+    ],
+  },
+  {
     id: "mca_msc",
-    name: "MCA / M.Sc Computer Science",
+    name: "MCA / Software Engineering",
     badge: "9 Chapters",
     description: "Software engineering oriented format featuring formal SRS, database schemas & QA test matrices.",
     recommended_for: "MCA, M.Sc IT, Software Engineering",
@@ -100,10 +155,10 @@ const FALLBACK_TEMPLATES = [
     recommended_for: "Mini Projects, Term Submissions, Hackathons",
     chapters: [
       "Introduction and Objectives",
-      "Requirement Analysis",
-      "System Architecture and Design",
-      "Implementation and Code Walkthrough",
-      "Testing and Output Verification",
+      "Requirement and Feasibility Analysis",
+      "System Architecture and Technical Design",
+      "Implementation and Workflow Demonstration",
+      "Testing and Empirical Verification",
       "Conclusion and References",
     ],
   },
@@ -117,7 +172,7 @@ const FALLBACK_TEMPLATES = [
       "Introduction",
       "Related Work and Background",
       "Mathematical and Architectural Formulation",
-      "Proposed Methodology and Algorithm",
+      "Proposed Methodology and Framework",
       "Implementation Details",
       "Experimental Results and Comparative Analysis",
       "Discussion and Conclusion",
@@ -134,7 +189,6 @@ const emptyProject = {
   guide: "",
   academic_year: "",
   abstract: "",
-  description: "",
   technologies: "",
   custom_chapters: null,
 };
@@ -651,12 +705,12 @@ function ProjectSpecsPage({ project, setProject, saveProject, onNext }) {
 
         <div>
           <label className="block text-sm font-bold text-slate-700 font-kalam">
-            Declared Technologies
+            Declared Tools, Materials & Standards
           </label>
           <textarea
             className="field-ruled"
             rows="3"
-            placeholder="e.g. React, Node.js, Python, PostgreSQL, Machine Learning, TailwindCSS"
+            placeholder="e.g. AutoCAD, ETABS, IS 456, Concrete Mix Design, Python, React, ANSYS, SPSS, etc."
             value={project.technologies}
             onChange={(e) => set("technologies", e.target.value)}
           />
@@ -676,11 +730,11 @@ function ProjectSpecsPage({ project, setProject, saveProject, onNext }) {
 
         <div>
           <label className="block text-sm font-bold text-slate-700 font-kalam">
-            Branch / Department
+            Branch / Discipline / Department
           </label>
           <input
             className="field"
-            placeholder="e.g. Computer Engineering / Information Technology"
+            placeholder="e.g. Civil Engineering, Mechanical, Electrical, Computer Science, MBA, etc."
             value={project.branch}
             onChange={(e) => set("branch", e.target.value)}
           />
@@ -712,27 +766,14 @@ function ProjectSpecsPage({ project, setProject, saveProject, onNext }) {
 
         <div className="md:col-span-2">
           <label className="block text-sm font-bold text-slate-700 font-kalam">
-            Project Abstract
-          </label>
-          <textarea
-            className="field-ruled"
-            rows="3"
-            placeholder="Write abstract summary of the proposed work..."
-            value={project.abstract}
-            onChange={(e) => set("abstract", e.target.value)}
-          />
-        </div>
-
-        <div className="md:col-span-2">
-          <label className="block text-sm font-bold text-slate-700 font-kalam">
-            Detailed Description & Objectives
+            Project Abstract / Synopsis
           </label>
           <textarea
             className="field-ruled"
             rows="4"
-            placeholder="Detail the problem statement, objectives, and project motivation..."
-            value={project.description}
-            onChange={(e) => set("description", e.target.value)}
+            placeholder="Write project abstract, problem statement, and scope of investigation..."
+            value={project.abstract}
+            onChange={(e) => set("abstract", e.target.value)}
           />
         </div>
       </div>
@@ -849,10 +890,10 @@ function MaterialsPage({ project, upload, onPrev, onNext, goToPage }) {
     <div className="space-y-6">
       <div className="pb-2 border-b border-[#ded2bd]">
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 font-kalam">
-          Lab Materials & Attachments
+          Project Materials & Evidence Attachments
         </h2>
         <p className="text-sm text-slate-600 font-handwriting">
-          Attach project source code and UI screenshots. The AI will extract modules and insert captioned images into the Word report.
+          Attach calculations, survey data, spreadsheets, site photos, CAD blueprints, test graphs, or code. The AI reads every file and uses computer vision on images to ground the report.
         </p>
       </div>
 
@@ -862,7 +903,7 @@ function MaterialsPage({ project, upload, onPrev, onNext, goToPage }) {
             <AlertTriangle className="text-amber-600 flex-shrink-0" size={22} />
             <div>
               <p className="font-bold font-kalam text-base">Project Not Saved Yet</p>
-              <p className="text-xs text-amber-800">Please fill out and click "Save Sheet" on Page 1 (Project Specs) first before attaching code files or screenshots.</p>
+              <p className="text-xs text-amber-800">Please fill out and click "Save Specifications" on Page 1 (Project Specs) first before attaching project files or photos.</p>
             </div>
           </div>
           <button
@@ -876,7 +917,7 @@ function MaterialsPage({ project, upload, onPrev, onNext, goToPage }) {
       )}
 
       <div className="grid gap-5 md:grid-cols-2">
-        {/* Source Code Dropzone */}
+        {/* Source Documents & Data Dropzone */}
         <label className="rounded-xl border-2 border-dashed border-[#1e40af]/50 bg-white/70 p-5 cursor-pointer hover:border-[#1e40af] hover:bg-white transition-all shadow-sm block relative">
           <div className="washi-tape washi-tape-blue -top-2.5 left-8" />
           <div className="flex items-center gap-3">
@@ -884,21 +925,21 @@ function MaterialsPage({ project, upload, onPrev, onNext, goToPage }) {
               <FileCode size={26} />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-slate-900 font-kalam">Attach Project Code & Docs</h3>
-              <p className="text-xs text-slate-500 font-handwriting">Python, JS, Java, C++, SQL, PDF, DOCX, TXT</p>
+              <h3 className="font-bold text-lg text-slate-900 font-kalam">Attach Calculations, Data & Docs</h3>
+              <p className="text-xs text-slate-500 font-handwriting">PDF, DOCX, XLSX, CSV, TXT, Python, SQL, CAD scripts</p>
             </div>
           </div>
           <p className="mt-3 text-xs text-slate-600 leading-relaxed font-handwriting">
-            The backend extracts classes, endpoints, database schemas, and algorithms to write factual implementation sections.
+            Upload design calculations, survey data, laboratory results, research notes, spreadsheets, or code. The AI reads and extracts all empirical values.
           </p>
           <div className="mt-4 flex items-center justify-between rounded-md bg-[#1e40af]/10 px-3 py-2 text-xs font-bold text-[#1e40af]">
-            <span className="flex items-center gap-1.5"><FileUp size={16} /> Choose Code / Doc Files</span>
+            <span className="flex items-center gap-1.5"><FileUp size={16} /> Choose Documents / Data</span>
             <span className="rough-stamp text-[10px]">MAX 25MB</span>
           </div>
           <input className="hidden" type="file" multiple onChange={(e) => upload(e, "material")} />
         </label>
 
-        {/* UI Screenshots Dropzone */}
+        {/* Diagrams, Blueprints & Photos Dropzone */}
         <label className="rounded-xl border-2 border-dashed border-teal-500/50 bg-white/70 p-5 cursor-pointer hover:border-teal-600 hover:bg-white transition-all shadow-sm block relative">
           <div className="washi-tape washi-tape-mint -top-2.5 left-8" />
           <div className="flex items-center gap-3">
@@ -906,16 +947,16 @@ function MaterialsPage({ project, upload, onPrev, onNext, goToPage }) {
               <ImageIcon size={26} />
             </div>
             <div>
-              <h3 className="font-bold text-lg text-slate-900 font-kalam">Attach UI Screenshots</h3>
-              <p className="text-xs text-slate-500 font-handwriting">PNG, JPG, JPEG, WEBP</p>
+              <h3 className="font-bold text-lg text-slate-900 font-kalam">Attach Blueprints, Exhibits & Photos</h3>
+              <p className="text-xs text-slate-500 font-handwriting">PNG, JPG, JPEG, WEBP (Auto-read by Vision AI)</p>
             </div>
           </div>
           <p className="mt-3 text-xs text-slate-600 leading-relaxed font-handwriting">
-            Screenshots are automatically centered and captioned inside the Word document under "Project Screenshots".
+            Upload structural models, CAD drawings, site photos, test curves, slump tests, circuits, or screenshots. The AI inspects and reads every image with computer vision.
           </p>
           <div className="mt-4 flex items-center justify-between rounded-md bg-teal-50 px-3 py-2 text-xs font-bold text-teal-800">
-            <span className="flex items-center gap-1.5"><FileUp size={16} /> Choose Screenshots</span>
-            <span className="rough-stamp text-[10px]">AUTO-SCALED</span>
+            <span className="flex items-center gap-1.5"><FileUp size={16} /> Choose Diagrams & Photos</span>
+            <span className="rough-stamp text-[10px]">VISION READ</span>
           </div>
           <input className="hidden" type="file" multiple accept="image/*" onChange={(e) => upload(e, "screenshot")} />
         </label>
@@ -1128,6 +1169,45 @@ function ManuscriptPage({ project, editChapter, regenerate, downloadReport, onPr
           />
         ))}
       </div>
+
+      {/* Global Schematics & Visual Exhibits Showcase */}
+      {project.generated_report?.diagrams && project.generated_report.diagrams.length > 0 && (
+        <div className="mt-8 rounded-xl border border-[#ded2bd] bg-white p-5 shadow-sm">
+          <div className="flex items-center justify-between border-b border-[#ded2bd] pb-3">
+            <div>
+              <span className="rough-stamp text-xs text-[#1e40af]">EXHIBIT REPOSITORY</span>
+              <h3 className="font-bold text-xl text-slate-900 font-kalam mt-1">
+                Generated Schematics & Architectural Visuals ({project.generated_report.diagrams.length})
+              </h3>
+            </div>
+            <span className="text-xs font-mono text-slate-500">Auto-embedded into Word DOCX</span>
+          </div>
+
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            {project.generated_report.diagrams.map((diag, dIdx) => (
+              <div key={dIdx} className="rounded-lg border border-slate-200 overflow-hidden bg-slate-50 flex flex-col justify-between">
+                <div className="bg-[#1e3a8a] px-3.5 py-2 text-white font-bold text-xs flex items-center justify-between">
+                  <span>Figure {dIdx + 1}: {diag.title}</span>
+                  <span className="text-[10px] text-blue-200 uppercase font-mono">{diag.type}</span>
+                </div>
+                <div className="p-3 flex items-center justify-center bg-white min-h-48">
+                  {diag.base64_png ? (
+                    <img
+                      src={diag.base64_png}
+                      alt={diag.title}
+                      className="max-h-60 max-w-full rounded object-contain"
+                    />
+                  ) : (
+                    <pre className="p-3 text-[11px] font-mono text-slate-700 overflow-x-auto w-full">
+                      {diag.definition}
+                    </pre>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1147,7 +1227,7 @@ function Chapter({ chapter, index, editChapter, regenerate }) {
   }
 
   return (
-    <section className="rounded-xl border border-[#ded2bd] bg-white/90 p-4 shadow-sm hover:shadow transition-all">
+    <section className="rounded-xl border border-[#ded2bd] bg-white/90 p-4 shadow-sm hover:shadow transition-all space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#e5dcc7] pb-2.5">
         <div className="flex items-center gap-2">
           <span className="rounded bg-slate-100 px-2 py-0.5 text-xs font-mono font-bold text-slate-700">
@@ -1180,11 +1260,91 @@ function Chapter({ chapter, index, editChapter, regenerate }) {
 
       {/* Ruled Handwriting Content Field */}
       <textarea
-        className="field-ruled mt-3 min-h-56 text-base"
+        className="field-ruled min-h-56 text-base"
         value={content}
         onChange={(e) => setContent(e.target.value)}
         placeholder="Write or edit chapter content..."
       />
+
+      {/* Inline Chapter Tables */}
+      {chapter.tables && chapter.tables.length > 0 && (
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between border-t border-[#ded2bd] pt-2">
+            <span className="text-xs font-bold font-kalam text-slate-800 flex items-center gap-1.5">
+              📊 Academic Tables ({chapter.tables.length})
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">Formatted in DOCX</span>
+          </div>
+
+          {chapter.tables.map((tbl, tIdx) => (
+            <div key={tIdx} className="rounded-lg border border-slate-300 overflow-hidden bg-white shadow-sm">
+              <div className="bg-[#1e3a8a] px-3.5 py-1.5 text-white font-bold text-xs flex items-center justify-between">
+                <span>Table {index}.{tIdx + 1}: {tbl.title || "Empirical Parameter Matrix"}</span>
+                <span className="text-[10px] text-blue-200">ACADEMIC TABLE</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
+                      {(tbl.headers || []).map((h, hIdx) => (
+                        <th key={hIdx} className="p-2 text-left border-r last:border-r-0 border-slate-200 font-kalam">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(tbl.rows || []).map((row, rIdx) => (
+                      <tr key={rIdx} className={rIdx % 2 === 1 ? "bg-slate-50" : "bg-white"}>
+                        {(row || []).map((cell, cIdx) => (
+                          <td key={cIdx} className="p-2 border border-slate-200 text-slate-700">
+                            {cell}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Inline Chapter Diagram */}
+      {chapter.diagram && (
+        <div className="pt-2">
+          <div className="flex items-center justify-between border-t border-[#ded2bd] pt-2 mb-2">
+            <span className="text-xs font-bold font-kalam text-slate-800 flex items-center gap-1.5">
+              📐 Architectural Schematic
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono">Embedded in DOCX</span>
+          </div>
+
+          <div className="rounded-lg border border-slate-300 overflow-hidden bg-white shadow-sm">
+            <div className="bg-[#0f172a] px-3.5 py-1.5 text-white font-bold text-xs flex items-center justify-between">
+              <span>Figure: {chapter.diagram.title || "Technical Model"}</span>
+              <span className="text-[10px] text-emerald-400">PUBLICATION FIGURE</span>
+            </div>
+            <div className="p-3 text-center bg-slate-50 flex flex-col items-center justify-center">
+              {chapter.diagram.base64_png ? (
+                <img
+                  src={chapter.diagram.base64_png}
+                  alt={chapter.diagram.title}
+                  className="max-h-72 max-w-full rounded border border-slate-200 shadow-sm object-contain"
+                />
+              ) : (
+                <div className="p-3 text-xs font-mono bg-white rounded border border-slate-200 text-slate-700 text-left w-full overflow-x-auto">
+                  <pre>{chapter.diagram.definition}</pre>
+                </div>
+              )}
+              <p className="mt-2 text-xs font-bold text-slate-700 italic">
+                {chapter.diagram.title}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }

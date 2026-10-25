@@ -4,11 +4,19 @@ from sqlalchemy.orm import Session
 
 from app.models.entities import FileKind, JobStatus, ReportJob, StoredFile
 from app.services.ai_provider import get_ai_provider
-from app.services.diagram import DiagramRenderer, ExhibitGenerator, GeneratedExhibit
+from app.services.diagram import DiagramRenderer, ExhibitGenerator, GeneratedExhibit, get_domain_fallback_diagrams
 from app.services.docx_writer import DocxReportWriter
+from app.services.extraction import extract_text
 from app.services.project_analyzer import analyze_project
-from app.services.prompting import DEFAULT_CHAPTERS, diagram_prompt, project_context, report_prompt, validation_prompt
+from app.services.prompting import (
+    DEFAULT_CHAPTERS,
+    diagram_prompt,
+    project_context,
+    report_prompt,
+    validation_prompt,
+)
 from app.services.rag import RagService
+from app.services.storage import StorageService
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +56,6 @@ def sanitize_and_structure_chapters(raw_chapters: list[str] | None) -> tuple[lis
     current_chapter: dict | None = None
 
     for line in filtered:
-        # Check if this line is an explicit sub-topic (e.g., "1.1 Background", "- item")
         is_sub = bool(
             re.match(r"^\d+\.\d+", line)
             or line.startswith(("- ", "* ", "• ", "> "))
@@ -78,92 +85,51 @@ def sanitize_and_structure_chapters(raw_chapters: list[str] | None) -> tuple[lis
     return (names, guidance)
 
 
-def get_project_fallback_diagrams(project) -> list[dict]:
-    tech = getattr(project, "technologies", "") or "Web Services, Database & APIs"
-    title_short = getattr(project, "title", "Project Application")[:40]
-    return [
-        {
-            "title": "High-Level System Architecture",
-            "type": "mermaid",
-            "definition": (
-                f"graph TD\n"
-                f"  Client[User Client / Presentation Layer] --> Gateway[API Gateway / Service Controller]\n"
-                f"  Gateway --> Engine[Core Business Logic & Processing Engine]\n"
-                f"  Engine --> Storage[(Database & Persistence Tier)]\n"
-                f"  Engine --> ExtServices[Component Stack: {tech[:35]}]\n"
-                f"  Storage --> Gateway\n"
-                f"  Gateway --> Client"
-            ),
-        },
-        {
-            "title": "System Use Case Diagram",
-            "type": "mermaid",
-            "definition": (
-                f"graph LR\n"
-                f"  User((Primary Operator)) --> Auth[Login & Authentication]\n"
-                f"  User --> InputData[Configure Parameters / Input Data]\n"
-                f"  User --> Process[Execute Core Operations]\n"
-                f"  User --> Results[View Reports & Visualizations]\n"
-                f"  Admin((System Administrator)) --> Manage[System Audit & Maintenance]"
-            ),
-        },
-        {
-            "title": "Data Flow Diagram (Level 1)",
-            "type": "mermaid",
-            "definition": (
-                f"graph TD\n"
-                f"  DataInput[Raw Inputs / Source Data] --> P1[Process 1: Ingestion & Validation]\n"
-                f"  P1 --> P2[Process 2: Core Algorithm / Computation Logic]\n"
-                f"  P2 --> DBStore[(Project Database Storage)]\n"
-                f"  P2 --> P3[Process 3: Output Formatting & Report Compilation]\n"
-                f"  P3 --> FinalReport[Final Thesis Delivery / Dashboard]"
-            ),
-        },
-        {
-            "title": "Entity Relationship / Component Model",
-            "type": "mermaid",
-            "definition": (
-                f"graph TD\n"
-                f"  UserAccount[USER: id, credentials, role] --> SessionLog[SESSION: session_id, timestamp]\n"
-                f"  UserAccount --> RecordEntity[RECORD: id, title, parameters]\n"
-                f"  RecordEntity --> ExecutionResult[RESULT: status, output_data, metrics]\n"
-                f"  ExecutionResult --> AuditReport[AUDIT: log_id, timestamp, verification]"
-            ),
-        },
-    ]
-
-
 def run_report_job(db: Session, job_id: int) -> None:
     job = db.get(ReportJob, job_id)
     if not job:
         return
     job.status = JobStatus.running
-    job.message = "Analyzing uploads"
+    job.message = "Analyzing uploads and attached files"
     db.commit()
     try:
         project = job.project
+        storage = StorageService()
+
         is_img = lambda f: f.kind == FileKind.screenshot or any(
             f.original_name.lower().endswith(ext) for ext in [".png", ".jpg", ".jpeg", ".webp"]
         )
         material_files = [f for f in project.files if f.kind in {FileKind.material, FileKind.screenshot}]
         screenshots = [f for f in project.files if is_img(f)]
 
-        # If no screenshots were uploaded, auto-generate high-res interactive exhibits
-        if not screenshots:
-            gen = ExhibitGenerator()
-            k1, b1 = gen.generate_dashboard(project)
-            k2, b2 = gen.generate_console(project)
-            screenshots = [
-                GeneratedExhibit("Interactive Analytical Dashboard & User Interface.png", k1, b1),
-                GeneratedExhibit("Terminal Execution Pipeline & Verification Log.png", k2, b2),
-            ]
+        # Ensure extracted text is populated for all files (including images via Gemini vision)
+        file_extracts: list[str] = []
+        for f in material_files:
+            text = f.extracted_text or ""
+            if (not text or "Student-provided" in text) and f.storage_key:
+                try:
+                    p = storage.restore_if_missing(f.storage_key, f.file_bytes)
+                    text = extract_text(p)
+                    f.extracted_text = text
+                except Exception as ex:
+                    logger.debug("Extraction refresh error for %s: %s", f.original_name, ex)
+            file_extracts.append(f"ATTACHMENT: {f.original_name} (Category: {f.kind.value}):\n{text[:15000]}")
+
+        extracted = "\n\n".join(file_extracts)
 
         profile = analyze_project(project, material_files)
         project.profile = profile
-        extracted = "\n\n".join((f.extracted_text or "")[:12000] for f in material_files)
+        domain_key = profile.get("domain_key", "tech")
+        domain_name = profile.get("domain_name", "Academic Research")
+
+        # If no screenshots were uploaded, dynamically generate high-res domain-tailored exhibits
+        if not screenshots:
+            gen = ExhibitGenerator()
+            screenshots = gen.generate_exhibits_for_project(project, domain_key=domain_key)
+
         ai = get_ai_provider()
         rag = RagService(ai)
-        query = f"{project.title}\n{project.abstract}\n{project.description}\n{project.technologies}\n{profile}"
+        query = f"{project.title}\n{project.branch}\n{domain_name}\n{project.technologies}\n{project.abstract}"
         chunks = rag.retrieve(
             query,
             metadata_hint={
@@ -175,9 +141,9 @@ def run_report_job(db: Session, job_id: int) -> None:
         context = project_context(project, profile, extracted, chunks)
         chapters, chapter_guidance = sanitize_and_structure_chapters(project.custom_chapters)
 
-        job.message = f"Writing report with Gemini ({len(material_files)} project file(s), {len(chunks)} reference chunk(s))"
+        job.message = f"Writing {domain_name} report with Gemini ({len(material_files)} file(s), {len(chunks)} reference(s))"
         db.commit()
-        report = ai.generate_json(report_prompt(context, chapters, chapter_guidance))
+        report = ai.generate_json(report_prompt(context, chapters, chapter_guidance, domain_info=profile))
 
         # Filter any accidental duplicate preliminary chapters returned by LLM
         clean_report_chapters = []
@@ -189,23 +155,32 @@ def run_report_job(db: Session, job_id: int) -> None:
             clean_report_chapters.append(ch)
         report["chapters"] = clean_report_chapters
 
-        job.message = "Validating report against curriculum guidelines"
+        job.message = "Validating report against academic standards"
         db.commit()
         validation = ai.generate_json(validation_prompt(context, report))
 
-        job.message = "Rendering architecture schematics"
+        job.message = f"Rendering {domain_name} schematics and diagrams"
         db.commit()
         diagrams = []
         try:
-            diagram_defs = ai.generate_json(diagram_prompt(context))
+            diagram_defs = ai.generate_json(diagram_prompt(context, domain_info=profile))
             if isinstance(diagram_defs, dict) and diagram_defs.get("diagrams"):
                 diagrams = DiagramRenderer().render_many(diagram_defs["diagrams"])
         except Exception as diagram_err:
             logger.warning("AI diagram generation skipped: %s", diagram_err)
 
-        # Fallback to project-tailored schematics if empty
+        # Fallback to domain-tailored schematics if empty
         if not diagrams:
-            diagrams = DiagramRenderer().render_many(get_project_fallback_diagrams(project))
+            diagrams = DiagramRenderer().render_many(get_domain_fallback_diagrams(project, domain_key=domain_key))
+
+        # Associate diagrams directly to relevant chapters for clear UI manuscript preview
+        diag_idx = 0
+        for ch in report.get("chapters", []):
+            t_low = ch.get("title", "").lower()
+            is_design = any(w in t_low for w in ["architecture", "design", "methodology", "structural", "model", "workflow", "schematic", "system"])
+            if is_design and diag_idx < len(diagrams):
+                ch["diagram"] = diagrams[diag_idx]
+                diag_idx += 1
 
         project.generated_report = {**report, "diagrams": diagrams}
         project.validation = validation
@@ -213,7 +188,7 @@ def run_report_job(db: Session, job_id: int) -> None:
         job.message = "Compiling Word DOCX document"
         db.commit()
         writer = DocxReportWriter()
-        key, size = writer.build(project, report, diagrams, screenshots, validation)
+        key, size = writer.build(project, report, diagrams, screenshots, validation, domain_info=profile)
         generated = StoredFile(
             owner_id=project.owner_id,
             project_id=project.id,
@@ -228,7 +203,7 @@ def run_report_job(db: Session, job_id: int) -> None:
         db.flush()
         job.result_file_id = generated.id
         job.status = JobStatus.completed
-        job.message = "Report generated"
+        job.message = "Report generated successfully"
         db.commit()
     except Exception as exc:
         db.rollback()
